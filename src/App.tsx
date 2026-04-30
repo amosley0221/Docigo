@@ -10,6 +10,7 @@ import { nextUniqueName } from './lib/files';
 import type { Item } from './lib/types';
 import { AuthProvider, useAuth } from './state/auth';
 import { AuthScreen } from './components/AuthScreen';
+import { GUEST_USER_ID } from './lib/db';
 
 export default function App() {
   return (
@@ -20,7 +21,7 @@ export default function App() {
 }
 
 function AuthGate() {
-  const { user, hydrated } = useAuth();
+  const { user, isGuest, hydrated } = useAuth();
   if (!hydrated) {
     return (
       <div className="grid-bg flex h-full items-center justify-center text-sm text-ink-400">
@@ -31,9 +32,10 @@ function AuthGate() {
       </div>
     );
   }
-  if (!user) return <AuthScreen />;
+  if (!user && !isGuest) return <AuthScreen />;
+  const id = user?.id ?? GUEST_USER_ID;
   return (
-    <StoreProvider key={user.id} userId={user.id}>
+    <StoreProvider key={id} userId={id}>
       <Shell />
     </StoreProvider>
   );

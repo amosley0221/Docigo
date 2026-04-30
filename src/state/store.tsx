@@ -9,7 +9,7 @@ import {
 import type { ReactNode } from 'react';
 import type { GroupT, Item, LocationT, FileItem, QuoteItem } from '../lib/types';
 import { uid } from '../lib/files';
-import { deleteBlob, loadState, putBlob, saveState } from '../lib/db';
+import { deleteBlob, loadState, putBlob, saveState, stateKeyFor } from '../lib/db';
 
 interface StoreState {
   locations: LocationT[];
@@ -50,8 +50,6 @@ interface StoreActions {
 type Store = StoreState & StoreActions;
 
 const StoreCtx = createContext<Store | null>(null);
-
-const stateKeyFor = (userId: string) => `docigo-state-v1::${userId}`;
 
 const sampleColors = ['#4361ff', '#aa3bff', '#ff5e7a', '#22b8a6', '#f59e0b', '#10b981'];
 

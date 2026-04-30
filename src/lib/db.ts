@@ -3,6 +3,9 @@ import { openDB, type IDBPDatabase } from 'idb';
 const DB_NAME = 'docigo';
 const DB_VERSION = 2;
 
+export const GUEST_USER_ID = '__guest__';
+export const stateKeyFor = (userId: string) => `docigo-state-v1::${userId}`;
+
 let dbPromise: Promise<IDBPDatabase> | null = null;
 
 export function db() {
@@ -62,4 +65,9 @@ export async function saveState<T>(key: string, value: T) {
 export async function loadState<T>(key: string): Promise<T | undefined> {
   const d = await db();
   return d.get('state', key);
+}
+
+export async function deleteState(key: string) {
+  const d = await db();
+  await d.delete('state', key);
 }

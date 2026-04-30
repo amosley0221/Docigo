@@ -5,7 +5,7 @@ import { Icon } from './Icon';
 type Mode = 'signin' | 'signup';
 
 export function AuthScreen() {
-  const { signIn, signUp } = useAuth();
+  const { signIn, signUp, continueAsGuest } = useAuth();
   const [mode, setMode] = useState<Mode>('signin');
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
@@ -227,10 +227,27 @@ export function AuthScreen() {
             )}
           </div>
 
+          <div className="my-5 flex items-center gap-3 text-[11px] uppercase tracking-wider text-ink-500">
+            <div className="h-px flex-1 bg-white/10" />
+            or
+            <div className="h-px flex-1 bg-white/10" />
+          </div>
+
+          <button
+            type="button"
+            onClick={continueAsGuest}
+            className="btn-quiet w-full justify-center py-2 text-sm font-medium"
+          >
+            <Icon name="spark" width={14} height={14} />
+            Continue without an account
+          </button>
+
           <div className="mt-5 rounded-lg border border-white/5 bg-white/[0.02] p-3 text-xs leading-relaxed text-ink-400">
-            <span className="font-medium text-ink-200">Local-only.</span> Your
-            password never leaves this browser. Files are stored on this device,
-            scoped to your account, and only visible after you sign in.
+            <span className="font-medium text-ink-200">Optional sign-in.</span>{' '}
+            You can use Docigo right away — registering is only needed if you
+            want to keep your work tied to an account so it’s waiting for you
+            when you come back. Either way, files stay on this device and
+            never leave your browser.
           </div>
         </div>
       </div>
