@@ -4,6 +4,7 @@ import { GroupView } from './GroupView';
 import { Icon } from './Icon';
 import type { GroupT } from '../lib/types';
 import { GroupFormModal } from './GroupFormModal';
+import { useReorderable, type DragOverState } from '../lib/reorder';
 
 export function Workspace() {
   const store = useStore();
@@ -14,6 +15,14 @@ export function Workspace() {
   );
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
   const [editingGroup, setEditingGroup] = useState<GroupT | null>(null);
+
+  const groupReorder = useReorderable<GroupT>({
+    items: groups,
+    onReorder: (orderedIds) => {
+      if (active) store.reorderGroups(active.id, orderedIds);
+    },
+    mimeType: 'application/x-docigo-group',
+  });
 
   const currentGroupId =
     activeGroupId && groups.find((g) => g.id === activeGroupId)
@@ -52,6 +61,13 @@ export function Workspace() {
               group={g}
               isActive={g.id === currentGroupId}
               count={store.itemsInGroup(g.id).length}
+              dragBind={groupReorder.bind(g.id)}
+              isDragging={groupReorder.draggingId === g.id}
+              dragOver={
+                groupReorder.overState && groupReorder.overState.id === g.id
+                  ? groupReorder.overState
+                  : null
+              }
               onSelect={() => setActiveGroupId(g.id)}
               onEdit={() => setEditingGroup(g)}
               onDelete={() => {
@@ -93,6 +109,9 @@ function GroupRow({
   group,
   isActive,
   count,
+  dragBind,
+  isDragging,
+  dragOver,
   onSelect,
   onEdit,
   onDelete,
@@ -100,18 +119,39 @@ function GroupRow({
   group: GroupT;
   isActive: boolean;
   count: number;
+  dragBind: React.HTMLAttributes<HTMLElement> & { draggable?: boolean };
+  isDragging: boolean;
+  dragOver: DragOverState | null;
   onSelect: () => void;
   onEdit: () => void;
   onDelete: () => void;
 }) {
+  const indicator = dragOver && !isDragging ? dragOver.pos : null;
   return (
     <div
-      className={`group mb-0.5 flex w-full items-center gap-1 rounded-lg px-1 transition ${
+      {...dragBind}
+      className={`group relative mb-0.5 flex w-full items-center gap-1 rounded-lg px-1 transition ${
+        isDragging ? 'opacity-40' : ''
+      } ${
         isActive
           ? 'bg-white/10 text-white'
           : 'text-ink-200 hover:bg-white/5 hover:text-white'
       }`}
     >
+      {indicator && (
+        <span
+          className={`pointer-events-none absolute left-0 right-0 h-0.5 rounded bg-accent-400 ${
+            indicator === 'before' ? 'top-0' : 'bottom-0'
+          }`}
+        />
+      )}
+      <span
+        className="flex w-3 cursor-grab items-center justify-center self-stretch text-ink-500 opacity-0 group-hover:opacity-100 active:cursor-grabbing"
+        title="Drag to reorder"
+        aria-hidden
+      >
+        ⋮⋮
+      </span>
       <button
         onClick={onSelect}
         className="flex flex-1 items-center gap-2 px-1.5 py-2 text-left text-sm"

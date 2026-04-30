@@ -4,6 +4,7 @@ import { useStore } from '../state/store';
 import type { LocationKind, LocationT } from '../lib/types';
 import { LocationFormModal } from './LocationFormModal';
 import { GroupFormModal } from './GroupFormModal';
+import { useReorderable } from '../lib/reorder';
 
 const KIND_ICON: Record<LocationKind, IconName> = {
   work: 'briefcase',
@@ -34,6 +35,12 @@ export function Sidebar({ collapsed, onToggle, onCollapse }: SidebarProps) {
   const [openGroup, setOpenGroup] = useState(false);
 
   const active = store.locations.find((l) => l.id === store.activeLocationId) ?? null;
+
+  const locReorder = useReorderable({
+    items: store.locations,
+    onReorder: store.reorderLocations,
+    mimeType: 'application/x-docigo-location',
+  });
 
   const groups = useMemo(
     () => (active ? store.groupsInLocation(active.id) : []),
@@ -120,21 +127,43 @@ export function Sidebar({ collapsed, onToggle, onCollapse }: SidebarProps) {
               const isActive = loc.id === store.activeLocationId;
               const itemCount = store.items.filter((i) => i.locationId === loc.id).length;
               const groupCount = store.groupsInLocation(loc.id).length;
+              const isDragging = locReorder.draggingId === loc.id;
+              const indicator =
+                locReorder.overState?.id === loc.id && locReorder.draggingId !== loc.id
+                  ? locReorder.overState.pos
+                  : null;
               return (
                 <div
                   key={loc.id}
-                  className={`group flex items-center gap-1 rounded-lg pr-1 transition ${
+                  {...locReorder.bind(loc.id)}
+                  className={`group relative flex items-center gap-1 rounded-lg pr-1 transition ${
+                    isDragging ? 'opacity-40' : ''
+                  } ${
                     isActive
                       ? 'bg-white/10 text-white shadow-soft'
                       : 'text-ink-200 hover:bg-white/5 hover:text-white'
                   }`}
                 >
+                  {indicator && (
+                    <span
+                      className={`pointer-events-none absolute left-0 right-0 h-0.5 rounded bg-accent-400 ${
+                        indicator === 'before' ? 'top-0' : 'bottom-0'
+                      }`}
+                    />
+                  )}
+                  <span
+                    className="flex h-9 w-3 cursor-grab items-center justify-center text-ink-500 opacity-0 group-hover:opacity-100 active:cursor-grabbing"
+                    title="Drag to reorder"
+                    aria-hidden
+                  >
+                    ⋮⋮
+                  </span>
                   <button
                     onClick={() => {
                       store.setActiveLocation(loc.id);
                       onCollapse();
                     }}
-                    className="flex flex-1 items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm"
+                    className="flex flex-1 items-center gap-2.5 rounded-lg pl-1 pr-2.5 py-2 text-left text-sm"
                   >
                     <span
                       className="flex h-7 w-7 items-center justify-center rounded-md"

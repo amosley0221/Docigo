@@ -28,9 +28,11 @@ interface StoreActions {
     patch: Partial<Pick<LocationT, 'name' | 'kind' | 'color'>>,
   ) => void;
   deleteLocation: (id: string) => void;
+  reorderLocations: (orderedIds: string[]) => void;
   addGroup: (locationId: string, name: string) => GroupT;
   renameGroup: (id: string, name: string) => void;
   deleteGroup: (id: string) => void;
+  reorderGroups: (locationId: string, orderedIds: string[]) => void;
   addFile: (
     file: File,
     target: { locationId: string; groupId: string },
@@ -172,6 +174,22 @@ export function StoreProvider({ children, userId }: StoreProviderProps) {
           };
         });
       },
+      reorderLocations: (orderedIds) => {
+        setState((s) => {
+          const byId = new Map(s.locations.map((l) => [l.id, l]));
+          const reordered: LocationT[] = [];
+          for (const id of orderedIds) {
+            const l = byId.get(id);
+            if (l) {
+              reordered.push(l);
+              byId.delete(id);
+            }
+          }
+          // Append any locations not present in the ordered list (defensive).
+          for (const l of byId.values()) reordered.push(l);
+          return { ...s, locations: reordered };
+        });
+      },
       addGroup: (locationId, name) => {
         const g: GroupT = { id: uid('grp'), locationId, name, createdAt: Date.now() };
         setState((s) => ({ ...s, groups: [...s.groups, g] }));
@@ -193,6 +211,35 @@ export function StoreProvider({ children, userId }: StoreProviderProps) {
             groups: s.groups.filter((g) => g.id !== id),
             items: s.items.filter((i) => i.groupId !== id),
           };
+        });
+      },
+      reorderGroups: (locationId, orderedIds) => {
+        setState((s) => {
+          const inLocation = s.groups.filter((g) => g.locationId === locationId);
+          const byId = new Map(inLocation.map((g) => [g.id, g]));
+          const reorderedInLoc: GroupT[] = [];
+          for (const id of orderedIds) {
+            const g = byId.get(id);
+            if (g) {
+              reorderedInLoc.push(g);
+              byId.delete(id);
+            }
+          }
+          for (const g of byId.values()) reorderedInLoc.push(g);
+          // Stitch back: keep groups in other locations in their existing
+          // positions; replace the in-location groups in their slots with the
+          // newly ordered sequence.
+          const result: GroupT[] = [];
+          let i = 0;
+          for (const g of s.groups) {
+            if (g.locationId === locationId) {
+              const next = reorderedInLoc[i++];
+              if (next) result.push(next);
+            } else {
+              result.push(g);
+            }
+          }
+          return { ...s, groups: result };
         });
       },
       addFile: async (file, target, options) => {
@@ -275,9 +322,7 @@ export function StoreProvider({ children, userId }: StoreProviderProps) {
           .filter((i) => i.groupId === groupId)
           .sort((a, b) => a.createdAt - b.createdAt),
       groupsInLocation: (locationId) =>
-        state.groups
-          .filter((g) => g.locationId === locationId)
-          .sort((a, b) => a.createdAt - b.createdAt),
+        state.groups.filter((g) => g.locationId === locationId),
     };
   }, [state]);
 
