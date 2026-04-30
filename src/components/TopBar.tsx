@@ -5,6 +5,11 @@ import type { LocationKind } from '../lib/types';
 import { useAuth } from '../state/auth';
 import { SettingsModal } from './SettingsModal';
 import { SearchBar } from './SearchBar';
+import {
+  formatBytes,
+  getStorageEstimate,
+  type StorageEstimate,
+} from '../lib/storage';
 
 const KIND_ICON: Record<LocationKind, IconName> = {
   work: 'briefcase',
@@ -25,6 +30,7 @@ export function TopBar({ sidebarCollapsed, onOpenSidebar }: TopBarProps) {
   const [open, setOpen] = useState(false);
   const [userOpen, setUserOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [storage, setStorage] = useState<StorageEstimate | null>(null);
   const ref = useRef<HTMLDivElement>(null);
   const userRef = useRef<HTMLDivElement>(null);
   const active = store.locations.find((l) => l.id === store.activeLocationId);
@@ -46,6 +52,17 @@ export function TopBar({ sidebarCollapsed, onOpenSidebar }: TopBarProps) {
     };
     window.addEventListener('mousedown', onClick);
     return () => window.removeEventListener('mousedown', onClick);
+  }, [userOpen]);
+
+  useEffect(() => {
+    if (!userOpen) return;
+    let cancelled = false;
+    getStorageEstimate().then((est) => {
+      if (!cancelled) setStorage(est);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [userOpen]);
 
   return (
@@ -188,6 +205,9 @@ export function TopBar({ sidebarCollapsed, onOpenSidebar }: TopBarProps) {
                     : 'Your work is saved on this device. Create an account to keep it tied to you.'}
                 </div>
               </div>
+              {storage?.supported && (
+                <StorageSection storage={storage} />
+              )}
               <div className="p-1">
                 {user ? (
                   <>
@@ -262,4 +282,48 @@ function initialsFor(first: string, last: string): string {
   const a = first?.trim()?.[0] ?? '';
   const b = last?.trim()?.[0] ?? '';
   return `${a}${b}`.toUpperCase() || '?';
+}
+
+function StorageSection({ storage }: { storage: StorageEstimate }) {
+  const pct =
+    storage.quota > 0
+      ? Math.min(100, Math.round((storage.usage / storage.quota) * 1000) / 10)
+      : 0;
+  return (
+    <div className="border-b border-white/5 px-3 py-3">
+      <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-wider text-ink-400">
+        <span>Storage on this device</span>
+        {storage.persistent ? (
+          <span
+            className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-300"
+            title="Browser will not auto-evict Docigo's data."
+          >
+            persistent
+          </span>
+        ) : (
+          <span
+            className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[10px] font-semibold text-ink-300"
+            title="Browser may evict data under storage pressure."
+          >
+            best-effort
+          </span>
+        )}
+      </div>
+      <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-white/[0.06]">
+        <div
+          className="h-full rounded-full bg-gradient-to-r from-accent-500 to-fuchsia-500 transition-all"
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      <div className="mt-1.5 flex items-center justify-between text-xs text-ink-300">
+        <span>
+          {formatBytes(storage.usage)}
+          {storage.quota > 0 && (
+            <span className="text-ink-500"> of ~{formatBytes(storage.quota)}</span>
+          )}
+        </span>
+        {storage.quota > 0 && <span className="text-ink-500">{pct}%</span>}
+      </div>
+    </div>
+  );
 }

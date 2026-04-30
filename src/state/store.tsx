@@ -9,7 +9,17 @@ import {
 import type { ReactNode } from 'react';
 import type { GroupT, Item, LocationT, FileItem, QuoteItem } from '../lib/types';
 import { uid } from '../lib/files';
-import { deleteBlob, loadState, putBlob, saveState, stateKeyFor } from '../lib/db';
+import {
+  deleteBlob,
+  deleteSearchText,
+  getSearchTextsFor,
+  loadState,
+  putBlob,
+  putSearchText,
+  saveState,
+  stateKeyFor,
+} from '../lib/db';
+import { extractSearchText } from '../lib/extract';
 
 interface StoreState {
   locations: LocationT[];
@@ -49,6 +59,8 @@ interface StoreActions {
   setActiveItem: (groupId: string, itemId: string) => void;
   itemsInGroup: (groupId: string) => Item[];
   groupsInLocation: (locationId: string) => GroupT[];
+  /** Map of itemId → extracted searchable text. Empty entries omitted. */
+  searchTexts: Record<string, string>;
 }
 
 type Store = StoreState & StoreActions;
@@ -102,6 +114,7 @@ interface StoreProviderProps {
 
 export function StoreProvider({ children, userId }: StoreProviderProps) {
   const [state, setState] = useState<StoreState>(defaultState);
+  const [searchTexts, setSearchTexts] = useState<Record<string, string>>({});
   const [hydrated, setHydrated] = useState(false);
   const persistRef = useRef<number | null>(null);
   const stateKey = stateKeyFor(userId);
@@ -110,11 +123,20 @@ export function StoreProvider({ children, userId }: StoreProviderProps) {
     let cancelled = false;
     setHydrated(false);
     setState(defaultState());
-    loadState<StoreState>(stateKey).then((saved) => {
+    setSearchTexts({});
+    (async () => {
+      const saved = await loadState<StoreState>(stateKey);
       if (cancelled) return;
-      if (saved && saved.locations?.length) setState(saved);
+      const next = saved && saved.locations?.length ? saved : defaultState();
+      setState(next);
+      const ids = next.items
+        .filter((i) => i.kind !== 'quote')
+        .map((i) => i.id);
+      const indexed = await getSearchTextsFor(ids);
+      if (cancelled) return;
+      setSearchTexts(indexed);
       setHydrated(true);
-    });
+    })();
     return () => {
       cancelled = true;
     };
@@ -164,7 +186,10 @@ export function StoreProvider({ children, userId }: StoreProviderProps) {
           const groupIds = new Set(groupsToRemove.map((g) => g.id));
           const itemsToRemove = s.items.filter((i) => groupIds.has(i.groupId));
           itemsToRemove.forEach((i) => {
-            if (i.kind !== 'quote') void deleteBlob((i as FileItem).blobKey);
+            if (i.kind !== 'quote') {
+              void deleteBlob((i as FileItem).blobKey);
+              void deleteSearchText(i.id);
+            }
           });
           const remaining = s.locations.filter((l) => l.id !== id);
           const nextActiveGroup = { ...s.activeGroupByLocation };
@@ -213,7 +238,10 @@ export function StoreProvider({ children, userId }: StoreProviderProps) {
         setState((s) => {
           const remove = s.items.filter((i) => i.groupId === id);
           remove.forEach((i) => {
-            if (i.kind !== 'quote') void deleteBlob((i as FileItem).blobKey);
+            if (i.kind !== 'quote') {
+              void deleteBlob((i as FileItem).blobKey);
+              void deleteSearchText(i.id);
+            }
           });
           const nextActiveItem = { ...s.activeItemByGroup };
           delete nextActiveItem[id];
@@ -291,6 +319,24 @@ export function StoreProvider({ children, userId }: StoreProviderProps) {
             activeItemByGroup: { ...s.activeItemByGroup, [target.groupId]: item.id },
           };
         });
+        // Index the file's text content for search (best-effort; failures
+        // don't block the upload).
+        void (async () => {
+          const text = await extractSearchText(file, kind);
+          if (text && text.trim()) {
+            await putSearchText(item.id, text);
+            setSearchTexts((prev) => ({ ...prev, [item.id]: text }));
+          } else if (options?.replaceItemId) {
+            // Replacing a previously-indexed file with one we can't index.
+            await deleteSearchText(item.id);
+            setSearchTexts((prev) => {
+              if (!(item.id in prev)) return prev;
+              const next = { ...prev };
+              delete next[item.id];
+              return next;
+            });
+          }
+        })();
         return item;
       },
       addQuote: (text, target, source) => {
@@ -317,6 +363,7 @@ export function StoreProvider({ children, userId }: StoreProviderProps) {
           const target = s.items.find((i) => i.id === id);
           if (target && target.kind !== 'quote') {
             void deleteBlob((target as FileItem).blobKey);
+            void deleteSearchText(target.id);
           }
           const next = { ...s.activeItemByGroup };
           for (const k of Object.keys(next)) {
@@ -348,8 +395,9 @@ export function StoreProvider({ children, userId }: StoreProviderProps) {
           .sort((a, b) => a.createdAt - b.createdAt),
       groupsInLocation: (locationId) =>
         state.groups.filter((g) => g.locationId === locationId),
+      searchTexts,
     };
-  }, [state]);
+  }, [state, searchTexts]);
 
   const value = useMemo<Store>(() => ({ ...state, ...actions }), [state, actions]);
 

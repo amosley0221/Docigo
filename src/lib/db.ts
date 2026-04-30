@@ -1,7 +1,7 @@
 import { openDB, type IDBPDatabase } from 'idb';
 
 const DB_NAME = 'docigo';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
 export const GUEST_USER_ID = '__guest__';
 export const stateKeyFor = (userId: string) => `docigo-state-v1::${userId}`;
@@ -20,6 +20,9 @@ export function db() {
         }
         if (!database.objectStoreNames.contains('users')) {
           database.createObjectStore('users', { keyPath: 'id' });
+        }
+        if (!database.objectStoreNames.contains('searchIndex')) {
+          database.createObjectStore('searchIndex');
         }
       },
     });
@@ -40,6 +43,34 @@ export async function getUser<T = unknown>(id: string): Promise<T | undefined> {
 export async function putUser<T extends { id: string }>(user: T) {
   const d = await db();
   await d.put('users', user);
+}
+
+export async function putSearchText(itemId: string, text: string) {
+  const d = await db();
+  await d.put('searchIndex', text, itemId);
+}
+
+export async function getSearchTextsFor(
+  itemIds: string[],
+): Promise<Record<string, string>> {
+  if (itemIds.length === 0) return {};
+  const d = await db();
+  const tx = d.transaction('searchIndex', 'readonly');
+  const store = tx.objectStore('searchIndex');
+  const out: Record<string, string> = {};
+  await Promise.all(
+    itemIds.map(async (id) => {
+      const v = (await store.get(id)) as string | undefined;
+      if (typeof v === 'string') out[id] = v;
+    }),
+  );
+  await tx.done;
+  return out;
+}
+
+export async function deleteSearchText(itemId: string) {
+  const d = await db();
+  await d.delete('searchIndex', itemId);
 }
 
 export async function putBlob(key: string, blob: Blob) {

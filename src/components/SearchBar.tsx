@@ -18,7 +18,7 @@ type Scope = 'current' | 'all';
 interface ItemHit {
   type: 'item';
   item: Item;
-  matchedField: 'name' | 'quote';
+  matchedField: 'name' | 'quote' | 'content';
   matchSnippet?: string;
 }
 
@@ -97,6 +97,18 @@ export function SearchBar() {
           matchedField: 'quote',
           matchSnippet: snippet(item.text, lower),
         });
+        continue;
+      }
+      if (item.kind !== 'quote') {
+        const content = store.searchTexts[item.id];
+        if (content && content.toLowerCase().includes(lower)) {
+          itemHits.push({
+            type: 'item',
+            item,
+            matchedField: 'content',
+            matchSnippet: snippet(content, lower),
+          });
+        }
       }
     }
 
@@ -293,6 +305,14 @@ function ResultRow({
         {hit.matchedField === 'quote' && hit.matchSnippet && (
           <div className="mt-0.5 line-clamp-2 text-xs italic text-ink-300">
             “<Highlight text={hit.matchSnippet} q={query} />”
+          </div>
+        )}
+        {hit.matchedField === 'content' && hit.matchSnippet && (
+          <div className="mt-0.5 line-clamp-2 text-xs text-ink-300">
+            <span className="mr-1 rounded bg-white/[0.06] px-1 py-px text-[10px] uppercase tracking-wider text-ink-400">
+              content
+            </span>
+            <Highlight text={hit.matchSnippet} q={query} />
           </div>
         )}
         <div className="mt-0.5 truncate text-xs text-ink-400">

@@ -22,6 +22,7 @@ import {
   saveState,
   stateKeyFor,
 } from '../lib/db';
+import { requestPersistence } from '../lib/storage';
 
 const SESSION_KEY = 'docigo.session.v1';
 const GUEST_KEY = 'docigo.guest.v1';
@@ -122,12 +123,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (u) {
             setUser(u);
             writeGuest(false);
+            void requestPersistence();
           } else {
             writeSession(null);
           }
         }
       } else if (readGuest()) {
-        if (!cancelled) setIsGuest(true);
+        if (!cancelled) {
+          setIsGuest(true);
+          void requestPersistence();
+        }
       }
       if (!cancelled) setHydrated(true);
     })();
@@ -143,6 +148,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     writeGuest(false);
     setIsGuest(false);
     setUser(u);
+    void requestPersistence();
   }, []);
 
   const signUp = useCallback<AuthActions['signUp']>(
@@ -155,6 +161,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       writeGuest(false);
       setIsGuest(false);
       setUser(u);
+      void requestPersistence();
     },
     [],
   );
@@ -169,6 +176,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const continueAsGuest = useCallback<AuthActions['continueAsGuest']>(() => {
     writeGuest(true);
     setIsGuest(true);
+    void requestPersistence();
   }, []);
 
   const exitGuest = useCallback<AuthActions['exitGuest']>(() => {
