@@ -126,6 +126,22 @@ function defaultState(): StoreState {
   };
 }
 
+/**
+ * Backfill missing fields on saved state so older persisted records keep
+ * working when new top-level keys are added to StoreState.
+ */
+function withDefaults(saved: Partial<StoreState>): StoreState {
+  return {
+    locations: saved.locations ?? [],
+    groups: saved.groups ?? [],
+    items: saved.items ?? [],
+    activeLocationId:
+      saved.activeLocationId ?? saved.locations?.[0]?.id ?? null,
+    activeGroupByLocation: saved.activeGroupByLocation ?? {},
+    activeItemByGroup: saved.activeItemByGroup ?? {},
+  };
+}
+
 interface StoreProviderProps {
   children: ReactNode;
   userId: string;
@@ -146,7 +162,8 @@ export function StoreProvider({ children, userId }: StoreProviderProps) {
     (async () => {
       const saved = await loadState<StoreState>(stateKey);
       if (cancelled) return;
-      const next = saved && saved.locations?.length ? saved : defaultState();
+      const next =
+        saved && saved.locations?.length ? withDefaults(saved) : defaultState();
       setState(next);
       const ids = next.items.filter(isFileItem).map((i) => i.id);
       const indexed = await getSearchTextsFor(ids);
