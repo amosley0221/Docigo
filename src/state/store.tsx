@@ -16,6 +16,7 @@ interface StoreState {
   groups: GroupT[];
   items: Item[];
   activeLocationId: string | null;
+  activeGroupByLocation: Record<string, string>; // locationId -> groupId
   activeItemByGroup: Record<string, string>; // groupId -> itemId
 }
 
@@ -33,6 +34,7 @@ interface StoreActions {
   renameGroup: (id: string, name: string) => void;
   deleteGroup: (id: string) => void;
   reorderGroups: (locationId: string, orderedIds: string[]) => void;
+  setActiveGroup: (locationId: string, groupId: string) => void;
   addFile: (
     file: File,
     target: { locationId: string; groupId: string },
@@ -88,6 +90,7 @@ function defaultState(): StoreState {
     groups,
     items: [],
     activeLocationId: work.id,
+    activeGroupByLocation: {},
     activeItemByGroup: {},
   };
 }
@@ -164,6 +167,10 @@ export function StoreProvider({ children, userId }: StoreProviderProps) {
             if (i.kind !== 'quote') void deleteBlob((i as FileItem).blobKey);
           });
           const remaining = s.locations.filter((l) => l.id !== id);
+          const nextActiveGroup = { ...s.activeGroupByLocation };
+          delete nextActiveGroup[id];
+          const nextActiveItem = { ...s.activeItemByGroup };
+          for (const gid of groupIds) delete nextActiveItem[gid];
           return {
             ...s,
             locations: remaining,
@@ -171,6 +178,8 @@ export function StoreProvider({ children, userId }: StoreProviderProps) {
             items: s.items.filter((i) => !groupIds.has(i.groupId)),
             activeLocationId:
               s.activeLocationId === id ? remaining[0]?.id ?? null : s.activeLocationId,
+            activeGroupByLocation: nextActiveGroup,
+            activeItemByGroup: nextActiveItem,
           };
         });
       },
@@ -206,10 +215,18 @@ export function StoreProvider({ children, userId }: StoreProviderProps) {
           remove.forEach((i) => {
             if (i.kind !== 'quote') void deleteBlob((i as FileItem).blobKey);
           });
+          const nextActiveItem = { ...s.activeItemByGroup };
+          delete nextActiveItem[id];
+          const nextActiveGroup = { ...s.activeGroupByLocation };
+          for (const k of Object.keys(nextActiveGroup)) {
+            if (nextActiveGroup[k] === id) delete nextActiveGroup[k];
+          }
           return {
             ...s,
             groups: s.groups.filter((g) => g.id !== id),
             items: s.items.filter((i) => i.groupId !== id),
+            activeItemByGroup: nextActiveItem,
+            activeGroupByLocation: nextActiveGroup,
           };
         });
       },
@@ -312,6 +329,14 @@ export function StoreProvider({ children, userId }: StoreProviderProps) {
           };
         });
       },
+      setActiveGroup: (locationId, groupId) =>
+        setState((s) => ({
+          ...s,
+          activeGroupByLocation: {
+            ...s.activeGroupByLocation,
+            [locationId]: groupId,
+          },
+        })),
       setActiveItem: (groupId, itemId) =>
         setState((s) => ({
           ...s,

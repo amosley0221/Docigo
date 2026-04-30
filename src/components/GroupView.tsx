@@ -65,13 +65,13 @@ export function GroupView({ group }: GroupViewProps) {
           .join(' · ')}`}
       />
 
-      <div className="flex items-center gap-3 border-b border-white/5 bg-black/20 px-4 py-2">
+      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 border-b border-white/5 bg-black/20 px-4 py-2">
         <div className="text-[11px] font-semibold uppercase tracking-wider text-ink-400">
           File
         </div>
-        <div className="relative flex-1" ref={ddRef}>
+        <div className="relative w-[clamp(240px,32vw,460px)]" ref={ddRef}>
           <button
-            className="flex w-full max-w-md items-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1.5 text-left text-sm text-white transition hover:bg-white/[0.08]"
+            className="flex w-full items-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1.5 text-left text-sm text-white transition hover:bg-white/[0.08]"
             onClick={() => setDropdown((v) => !v)}
           >
             {active && (
@@ -88,7 +88,7 @@ export function GroupView({ group }: GroupViewProps) {
             <Icon name="chevron-down" width={14} height={14} className="text-ink-300" />
           </button>
           {dropdown && (
-            <div className="glass-strong absolute left-0 top-[calc(100%+6px)] z-30 w-full max-w-md overflow-hidden rounded-xl shadow-soft">
+            <div className="glass-strong absolute left-1/2 top-[calc(100%+6px)] z-30 w-full -translate-x-1/2 overflow-hidden rounded-xl shadow-soft">
               <div className="px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wider text-ink-400">
                 Items in {group.name}
               </div>
@@ -113,21 +113,23 @@ export function GroupView({ group }: GroupViewProps) {
             </div>
           )}
         </div>
-        {active && (
-          <button
-            className="flex items-center gap-1.5 rounded-md border border-white/10 bg-white/[0.03] px-2 py-1 text-xs text-ink-300 transition hover:bg-red-500/15 hover:text-red-300"
-            onClick={() => {
-              const label = active.kind === 'quote' ? 'this quote' : `“${active.name}”`;
-              if (confirm(`Remove ${label}? This can’t be undone.`)) {
-                store.deleteItem(active.id);
-              }
-            }}
-            title="Remove this item"
-          >
-            <Icon name="trash" width={13} height={13} />
-            Remove
-          </button>
-        )}
+        <div className="flex justify-end">
+          {active && (
+            <button
+              className="flex items-center gap-1.5 rounded-md border border-white/10 bg-white/[0.03] px-2 py-1 text-xs text-ink-300 transition hover:bg-red-500/15 hover:text-red-300"
+              onClick={() => {
+                const label = active.kind === 'quote' ? 'this quote' : `“${active.name}”`;
+                if (confirm(`Remove ${label}? This can’t be undone.`)) {
+                  store.deleteItem(active.id);
+                }
+              }}
+              title="Remove this item"
+            >
+              <Icon name="trash" width={13} height={13} />
+              Remove
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="min-h-0 flex-1 overflow-hidden">

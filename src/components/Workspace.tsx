@@ -13,8 +13,10 @@ export function Workspace() {
     () => (active ? store.groupsInLocation(active.id) : []),
     [active, store],
   );
-  const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
   const [editingGroup, setEditingGroup] = useState<GroupT | null>(null);
+  const storedActiveGroupId = active
+    ? store.activeGroupByLocation[active.id]
+    : undefined;
 
   const groupReorder = useReorderable<GroupT>({
     items: groups,
@@ -25,10 +27,13 @@ export function Workspace() {
   });
 
   const currentGroupId =
-    activeGroupId && groups.find((g) => g.id === activeGroupId)
-      ? activeGroupId
+    storedActiveGroupId && groups.find((g) => g.id === storedActiveGroupId)
+      ? storedActiveGroupId
       : groups[0]?.id ?? null;
   const currentGroup = groups.find((g) => g.id === currentGroupId) ?? null;
+  const setActiveGroupId = (id: string) => {
+    if (active) store.setActiveGroup(active.id, id);
+  };
 
   if (!active) {
     return (
@@ -80,7 +85,6 @@ export function Workspace() {
                   )
                 ) {
                   store.deleteGroup(g.id);
-                  if (activeGroupId === g.id) setActiveGroupId(null);
                 }
               }}
             />

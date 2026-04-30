@@ -4,6 +4,7 @@ import { useStore } from '../state/store';
 import type { LocationKind } from '../lib/types';
 import { useAuth } from '../state/auth';
 import { SettingsModal } from './SettingsModal';
+import { SearchBar } from './SearchBar';
 
 const KIND_ICON: Record<LocationKind, IconName> = {
   work: 'briefcase',
@@ -147,10 +148,7 @@ export function TopBar({ sidebarCollapsed, onOpenSidebar }: TopBarProps) {
       </div>
 
       <div className="ml-auto flex items-center gap-3 text-xs text-ink-400">
-        <span className="hidden items-center gap-1.5 md:inline-flex">
-          <Icon name="sparkle" width={12} height={12} />
-          Drag &amp; drop or paste anywhere
-        </span>
+        <SearchBar />
 
         <div className="relative" ref={userRef}>
           <button
