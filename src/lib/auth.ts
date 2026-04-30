@@ -122,3 +122,76 @@ export async function verifyUser(
 export async function getUserById(id: string): Promise<UserRecord | undefined> {
   return getUser<UserRecord>(id);
 }
+
+interface ProfilePatch {
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+}
+
+export async function updateUserProfile(
+  userId: string,
+  patch: ProfilePatch,
+): Promise<UserRecord> {
+  const existing = await getUser<UserRecord>(userId);
+  if (!existing) throw new Error('Account not found');
+  const next: UserRecord = { ...existing };
+  if (patch.firstName !== undefined) {
+    const f = patch.firstName.trim();
+    if (!f) throw new Error('First name is required');
+    next.firstName = f;
+  }
+  if (patch.lastName !== undefined) {
+    const l = patch.lastName.trim();
+    if (!l) throw new Error('Last name is required');
+    next.lastName = l;
+  }
+  if (patch.email !== undefined) {
+    const e = patch.email.trim();
+    if (!e) throw new Error('Email is required');
+    if (!isValidEmail(e)) throw new Error('Enter a valid email address');
+    const lower = e.toLowerCase();
+    if (lower !== existing.emailLower) {
+      const all = (await listUsers<UserRecord>()) ?? [];
+      if (all.some((u) => u.id !== userId && u.emailLower === lower)) {
+        throw new Error('An account with that email already exists on this device');
+      }
+    }
+    next.email = e;
+    next.emailLower = lower;
+  }
+  next.display = `${next.firstName} ${next.lastName}`;
+  await putUser(next);
+  return next;
+}
+
+export async function changeUserPassword(
+  userId: string,
+  currentPassword: string,
+  newPassword: string,
+): Promise<UserRecord> {
+  const existing = await getUser<UserRecord>(userId);
+  if (!existing) throw new Error('Account not found');
+  if (newPassword.length < 6)
+    throw new Error('New password must be at least 6 characters');
+  const salt = b64ToBuf(existing.saltB64);
+  const expected = b64ToBuf(existing.hashB64);
+  const got = await deriveHash(
+    currentPassword,
+    salt,
+    existing.iterations ?? ITERATIONS,
+  );
+  if (!timingSafeEqual(expected, got)) {
+    throw new Error('Current password is incorrect');
+  }
+  const newSalt = crypto.getRandomValues(new Uint8Array(SALT_BYTES));
+  const newHash = await deriveHash(newPassword, newSalt.buffer);
+  const next: UserRecord = {
+    ...existing,
+    saltB64: bufToB64(newSalt.buffer),
+    hashB64: bufToB64(newHash),
+    iterations: ITERATIONS,
+  };
+  await putUser(next);
+  return next;
+}

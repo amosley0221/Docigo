@@ -7,7 +7,14 @@ import {
   useState,
 } from 'react';
 import type { ReactNode } from 'react';
-import { createUser, getUserById, verifyUser, type UserRecord } from '../lib/auth';
+import {
+  changeUserPassword,
+  createUser,
+  getUserById,
+  updateUserProfile,
+  verifyUser,
+  type UserRecord,
+} from '../lib/auth';
 import {
   GUEST_USER_ID,
   deleteState,
@@ -75,6 +82,12 @@ interface AuthActions {
   signOut: () => void;
   continueAsGuest: () => void;
   exitGuest: () => void;
+  updateProfile: (patch: {
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+  }) => Promise<void>;
+  changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
 }
 
 type Auth = AuthState & AuthActions;
@@ -163,6 +176,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsGuest(false);
   }, []);
 
+  const updateProfile = useCallback<AuthActions['updateProfile']>(
+    async (patch) => {
+      if (!user) throw new Error('Not signed in');
+      const next = await updateUserProfile(user.id, patch);
+      setUser(next);
+    },
+    [user],
+  );
+
+  const changePassword = useCallback<AuthActions['changePassword']>(
+    async (currentPassword, newPassword) => {
+      if (!user) throw new Error('Not signed in');
+      const next = await changeUserPassword(user.id, currentPassword, newPassword);
+      setUser(next);
+    },
+    [user],
+  );
+
   const value = useMemo<Auth>(
     () => ({
       user,
@@ -173,8 +204,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signOut,
       continueAsGuest,
       exitGuest,
+      updateProfile,
+      changePassword,
     }),
-    [user, isGuest, hydrated, signIn, signUp, signOut, continueAsGuest, exitGuest],
+    [
+      user,
+      isGuest,
+      hydrated,
+      signIn,
+      signUp,
+      signOut,
+      continueAsGuest,
+      exitGuest,
+      updateProfile,
+      changePassword,
+    ],
   );
 
   return <AuthCtx.Provider value={value}>{children}</AuthCtx.Provider>;

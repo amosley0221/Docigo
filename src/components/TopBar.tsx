@@ -3,6 +3,7 @@ import { Icon, type IconName } from './Icon';
 import { useStore } from '../state/store';
 import type { LocationKind } from '../lib/types';
 import { useAuth } from '../state/auth';
+import { SettingsModal } from './SettingsModal';
 
 const KIND_ICON: Record<LocationKind, IconName> = {
   work: 'briefcase',
@@ -22,6 +23,7 @@ export function TopBar({ sidebarCollapsed, onOpenSidebar }: TopBarProps) {
   const { user, isGuest, signOut, exitGuest } = useAuth();
   const [open, setOpen] = useState(false);
   const [userOpen, setUserOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const userRef = useRef<HTMLDivElement>(null);
   const active = store.locations.find((l) => l.id === store.activeLocationId);
@@ -190,16 +192,28 @@ export function TopBar({ sidebarCollapsed, onOpenSidebar }: TopBarProps) {
               </div>
               <div className="p-1">
                 {user ? (
-                  <button
-                    className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm text-ink-200 hover:bg-white/5 hover:text-white"
-                    onClick={() => {
-                      setUserOpen(false);
-                      signOut();
-                    }}
-                  >
-                    <Icon name="x" width={14} height={14} />
-                    Sign out
-                  </button>
+                  <>
+                    <button
+                      className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm text-ink-200 hover:bg-white/5 hover:text-white"
+                      onClick={() => {
+                        setUserOpen(false);
+                        setSettingsOpen(true);
+                      }}
+                    >
+                      <Icon name="edit" width={14} height={14} />
+                      Account settings
+                    </button>
+                    <button
+                      className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm text-ink-200 hover:bg-white/5 hover:text-white"
+                      onClick={() => {
+                        setUserOpen(false);
+                        signOut();
+                      }}
+                    >
+                      <Icon name="x" width={14} height={14} />
+                      Sign out
+                    </button>
+                  </>
                 ) : (
                   <>
                     <button
@@ -240,6 +254,8 @@ export function TopBar({ sidebarCollapsed, onOpenSidebar }: TopBarProps) {
           )}
         </div>
       </div>
+
+      <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </header>
   );
 }
