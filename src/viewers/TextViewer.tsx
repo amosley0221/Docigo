@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { getBlob } from '../lib/db';
 import type { FileItem } from '../lib/types';
-import { ViewerError, ViewerLoading } from './SpreadsheetViewer';
+import { ViewerError, ViewerLoading } from './Status';
 
 export function TextViewer({ item }: { item: FileItem }) {
   const [text, setText] = useState<string | null>(null);

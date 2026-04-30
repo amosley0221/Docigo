@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { getBlob } from '../lib/db';
 import type { FileItem } from '../lib/types';
-import { ViewerError, ViewerLoading } from './SpreadsheetViewer';
+import { ViewerError, ViewerLoading } from './Status';
 
 export function PdfViewer({ item }: { item: FileItem }) {
   const [url, setUrl] = useState<string | null>(null);
