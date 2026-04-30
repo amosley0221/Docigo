@@ -154,14 +154,14 @@ export function TopBar({ sidebarCollapsed, onOpenSidebar }: TopBarProps) {
           <button
             className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-2 py-1 text-sm font-medium text-white transition hover:bg-white/[0.08]"
             onClick={() => setUserOpen((v) => !v)}
-            title={user?.username ?? 'Guest'}
+            title={user?.display ?? 'Guest'}
           >
             {user ? (
               <>
                 <span className="flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-br from-accent-500 to-fuchsia-500 text-[11px] font-bold text-white">
-                  {user.username.slice(0, 1).toUpperCase()}
+                  {initialsFor(user.firstName, user.lastName)}
                 </span>
-                <span className="max-w-[120px] truncate">{user.username}</span>
+                <span className="max-w-[140px] truncate">{user.display}</span>
               </>
             ) : (
               <>
@@ -180,11 +180,11 @@ export function TopBar({ sidebarCollapsed, onOpenSidebar }: TopBarProps) {
                   {user ? 'Signed in' : 'Guest mode'}
                 </div>
                 <div className="mt-0.5 truncate font-medium text-white">
-                  {user?.username ?? 'Not signed in'}
+                  {user?.display ?? 'Not signed in'}
                 </div>
-                <div className="text-xs text-ink-400">
+                <div className="truncate text-xs text-ink-400">
                   {user
-                    ? user.email ?? 'Local-only account'
+                    ? user.email
                     : 'Your work is saved on this device. Create an account to keep it tied to you.'}
                 </div>
               </div>
@@ -242,4 +242,10 @@ export function TopBar({ sidebarCollapsed, onOpenSidebar }: TopBarProps) {
       </div>
     </header>
   );
+}
+
+function initialsFor(first: string, last: string): string {
+  const a = first?.trim()?.[0] ?? '';
+  const b = last?.trim()?.[0] ?? '';
+  return `${a}${b}`.toUpperCase() || '?';
 }

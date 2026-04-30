@@ -7,9 +7,9 @@ type Mode = 'signin' | 'signup';
 export function AuthScreen() {
   const { signIn, signUp, continueAsGuest } = useAuth();
   const [mode, setMode] = useState<Mode>('signin');
-  const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
-  const [identifier, setIdentifier] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [stay, setStay] = useState(true);
@@ -26,9 +26,9 @@ export function AuthScreen() {
     setBusy(true);
     try {
       if (mode === 'signin') {
-        await signIn(identifier, password, stay);
+        await signIn(email, password, stay);
       } else {
-        await signUp(username, email, password, stay);
+        await signUp(email, firstName, lastName, password, stay);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong');
@@ -86,51 +86,50 @@ export function AuthScreen() {
           <div className="mb-6 text-sm text-ink-300">
             {mode === 'signin'
               ? 'Sign in to access your private workspace.'
-              : 'Pick a username and password to start organizing.'}
+              : 'Tell us a little about you so we can save your work.'}
           </div>
 
           <form onSubmit={submit} className="space-y-4">
-            {mode === 'signin' ? (
-              <div>
-                <div className="label">Username or email</div>
-                <input
-                  autoFocus
-                  className="input"
-                  value={identifier}
-                  onChange={(e) => setIdentifier(e.target.value)}
-                  autoComplete="username"
-                  placeholder="alex or alex@example.com"
-                  required
-                />
-              </div>
-            ) : (
-              <>
+            {mode === 'signup' && (
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <div className="label">Username</div>
+                  <div className="label">First name</div>
                   <input
                     autoFocus
                     className="input"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    autoComplete="username"
-                    placeholder="alex"
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
+                    autoComplete="given-name"
+                    placeholder="Alex"
                     required
                   />
                 </div>
                 <div>
-                  <div className="label">Email</div>
+                  <div className="label">Last name</div>
                   <input
                     className="input"
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    autoComplete="email"
-                    placeholder="alex@example.com"
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
+                    autoComplete="family-name"
+                    placeholder="Morgan"
                     required
                   />
                 </div>
-              </>
+              </div>
             )}
+            <div>
+              <div className="label">Email</div>
+              <input
+                autoFocus={mode === 'signin'}
+                className="input"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                autoComplete="email"
+                placeholder="alex@example.com"
+                required
+              />
+            </div>
             <div>
               <div className="label">Password</div>
               <input

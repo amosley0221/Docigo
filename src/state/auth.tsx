@@ -64,10 +64,11 @@ interface AuthState {
 }
 
 interface AuthActions {
-  signIn: (identifier: string, password: string, stay: boolean) => Promise<void>;
+  signIn: (email: string, password: string, stay: boolean) => Promise<void>;
   signUp: (
-    username: string,
     email: string,
+    firstName: string,
+    lastName: string,
     password: string,
     stay: boolean,
   ) => Promise<void>;
@@ -122,9 +123,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const signIn = useCallback<AuthActions['signIn']>(async (identifier, password, stay) => {
-    const u = await verifyUser(identifier, password);
-    if (!u) throw new Error('Wrong username/email or password');
+  const signIn = useCallback<AuthActions['signIn']>(async (email, password, stay) => {
+    const u = await verifyUser(email, password);
+    if (!u) throw new Error('Wrong email or password');
     writeSession({ userId: u.id, persistent: stay });
     writeGuest(false);
     setIsGuest(false);
@@ -132,8 +133,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signUp = useCallback<AuthActions['signUp']>(
-    async (username, email, password, stay) => {
-      const u = await createUser(username, email, password);
+    async (email, firstName, lastName, password, stay) => {
+      const u = await createUser(email, firstName, lastName, password);
       // If the user was working as a guest, carry that work into their new
       // account so "save my work" actually preserves the session.
       await migrateGuestStateTo(u.id);
