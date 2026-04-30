@@ -25,7 +25,12 @@ export type IconName =
   | 'edit'
   | 'check'
   | 'logo'
-  | 'sparkle';
+  | 'sparkle'
+  | 'checklist'
+  | 'chart'
+  | 'chart-bar'
+  | 'chart-line'
+  | 'chart-pie';
 
 export function Icon({ name, ...props }: IconProps) {
   const common = {
@@ -178,6 +183,32 @@ export function Icon({ name, ...props }: IconProps) {
       return (
         <svg {...common} {...props}>
           <path d="M5 12l5 5L20 7" />
+        </svg>
+      );
+    case 'checklist':
+      return (
+        <svg {...common} {...props}>
+          <path d="M8 6h12M8 12h12M8 18h12" />
+          <path d="M3 5l1.5 1.5L7 4M3 11l1.5 1.5L7 10M3 17l1.5 1.5L7 16" />
+        </svg>
+      );
+    case 'chart':
+    case 'chart-bar':
+      return (
+        <svg {...common} {...props}>
+          <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" />
+        </svg>
+      );
+    case 'chart-line':
+      return (
+        <svg {...common} {...props}>
+          <path d="M3 17l5-6 4 4 8-9M22 20H2" />
+        </svg>
+      );
+    case 'chart-pie':
+      return (
+        <svg {...common} {...props}>
+          <path d="M21 12a9 9 0 1 1-9-9v9h9z" />
         </svg>
       );
     case 'logo':

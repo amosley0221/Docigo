@@ -10,6 +10,8 @@ const ICON_FOR_KIND: Record<ItemKind, IconName> = {
   image: 'image',
   text: 'text',
   quote: 'quote',
+  checklist: 'checklist',
+  chart: 'chart-bar',
   unknown: 'folder',
 };
 
@@ -99,16 +101,42 @@ export function SearchBar() {
         });
         continue;
       }
-      if (item.kind !== 'quote') {
-        const content = store.searchTexts[item.id];
-        if (content && content.toLowerCase().includes(lower)) {
+      if (item.kind === 'checklist') {
+        const match = item.entries.find((e) =>
+          e.text.toLowerCase().includes(lower),
+        );
+        if (match) {
           itemHits.push({
             type: 'item',
             item,
             matchedField: 'content',
-            matchSnippet: snippet(content, lower),
+            matchSnippet: `${match.done ? '✓ ' : '◦ '}${snippet(match.text, lower)}`,
           });
         }
+        continue;
+      }
+      if (item.kind === 'chart') {
+        const match = item.data.find((d) =>
+          d.label.toLowerCase().includes(lower),
+        );
+        if (match) {
+          itemHits.push({
+            type: 'item',
+            item,
+            matchedField: 'content',
+            matchSnippet: `${match.label} · ${match.value}`,
+          });
+        }
+        continue;
+      }
+      const content = store.searchTexts[item.id];
+      if (content && content.toLowerCase().includes(lower)) {
+        itemHits.push({
+          type: 'item',
+          item,
+          matchedField: 'content',
+          matchSnippet: snippet(content, lower),
+        });
       }
     }
 

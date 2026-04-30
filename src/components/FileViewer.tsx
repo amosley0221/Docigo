@@ -5,6 +5,8 @@ import { TextViewer } from '../viewers/TextViewer';
 import { QuoteViewer } from '../viewers/QuoteViewer';
 import { UnknownViewer } from '../viewers/UnknownViewer';
 import { PdfViewer } from '../viewers/PdfViewer';
+import { ChecklistViewer } from '../viewers/ChecklistViewer';
+import { ChartViewer } from '../viewers/ChartViewer';
 import { ViewerLoading } from '../viewers/Status';
 
 const SpreadsheetViewer = lazy(() =>
@@ -16,6 +18,8 @@ const DocumentViewer = lazy(() =>
 
 export function FileViewer({ item }: { item: Item }) {
   if (item.kind === 'quote') return <QuoteViewer item={item} />;
+  if (item.kind === 'checklist') return <ChecklistViewer item={item} />;
+  if (item.kind === 'chart') return <ChartViewer item={item} />;
   switch (item.kind) {
     case 'spreadsheet':
       return (

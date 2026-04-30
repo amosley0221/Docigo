@@ -7,7 +7,15 @@ import {
   useState,
 } from 'react';
 import type { ReactNode } from 'react';
-import type { GroupT, Item, LocationT, FileItem, QuoteItem } from '../lib/types';
+import type {
+  ChartItemT,
+  ChecklistItemT,
+  FileItem,
+  GroupT,
+  Item,
+  LocationT,
+  QuoteItem,
+} from '../lib/types';
 import { uid } from '../lib/files';
 import {
   deleteBlob,
@@ -55,6 +63,17 @@ interface StoreActions {
     target: { locationId: string; groupId: string },
     source?: string,
   ) => QuoteItem;
+  addChecklist: (
+    target: { locationId: string; groupId: string },
+    name?: string,
+  ) => ChecklistItemT;
+  updateChecklist: (id: string, patch: Partial<Omit<ChecklistItemT, 'id' | 'kind'>>) => void;
+  addChart: (
+    target: { locationId: string; groupId: string },
+    name?: string,
+  ) => ChartItemT;
+  updateChart: (id: string, patch: Partial<Omit<ChartItemT, 'id' | 'kind'>>) => void;
+  renameItem: (id: string, name: string) => void;
   deleteItem: (id: string) => void;
   setActiveItem: (groupId: string, itemId: string) => void;
   itemsInGroup: (groupId: string) => Item[];
@@ -129,9 +148,7 @@ export function StoreProvider({ children, userId }: StoreProviderProps) {
       if (cancelled) return;
       const next = saved && saved.locations?.length ? saved : defaultState();
       setState(next);
-      const ids = next.items
-        .filter((i) => i.kind !== 'quote')
-        .map((i) => i.id);
+      const ids = next.items.filter(isFileItem).map((i) => i.id);
       const indexed = await getSearchTextsFor(ids);
       if (cancelled) return;
       setSearchTexts(indexed);
@@ -146,11 +163,11 @@ export function StoreProvider({ children, userId }: StoreProviderProps) {
     if (!hydrated) return;
     if (persistRef.current) window.clearTimeout(persistRef.current);
     persistRef.current = window.setTimeout(() => {
-      // Strip transient cache field before persisting
+      // Strip transient cache field on file items before persisting.
       const safe: StoreState = {
         ...state,
         items: state.items.map((it) =>
-          it.kind === 'quote' ? it : { ...it, cache: undefined },
+          isFileItem(it) ? { ...it, cache: undefined } : it,
         ),
       };
       saveState(stateKey, safe);
@@ -186,8 +203,8 @@ export function StoreProvider({ children, userId }: StoreProviderProps) {
           const groupIds = new Set(groupsToRemove.map((g) => g.id));
           const itemsToRemove = s.items.filter((i) => groupIds.has(i.groupId));
           itemsToRemove.forEach((i) => {
-            if (i.kind !== 'quote') {
-              void deleteBlob((i as FileItem).blobKey);
+            if (isFileItem(i)) {
+              void deleteBlob(i.blobKey);
               void deleteSearchText(i.id);
             }
           });
@@ -238,8 +255,8 @@ export function StoreProvider({ children, userId }: StoreProviderProps) {
         setState((s) => {
           const remove = s.items.filter((i) => i.groupId === id);
           remove.forEach((i) => {
-            if (i.kind !== 'quote') {
-              void deleteBlob((i as FileItem).blobKey);
+            if (isFileItem(i)) {
+              void deleteBlob(i.blobKey);
               void deleteSearchText(i.id);
             }
           });
@@ -358,11 +375,78 @@ export function StoreProvider({ children, userId }: StoreProviderProps) {
         }));
         return item;
       },
+      addChecklist: (target, name) => {
+        const now = Date.now();
+        const item: ChecklistItemT = {
+          id: uid('itm'),
+          name: name?.trim() || 'New checklist',
+          kind: 'checklist',
+          entries: [],
+          locationId: target.locationId,
+          groupId: target.groupId,
+          createdAt: now,
+          updatedAt: now,
+        };
+        setState((s) => ({
+          ...s,
+          items: [...s.items, item],
+          activeItemByGroup: { ...s.activeItemByGroup, [target.groupId]: item.id },
+        }));
+        return item;
+      },
+      updateChecklist: (id, patch) => {
+        setState((s) => ({
+          ...s,
+          items: s.items.map((i) =>
+            i.id === id && i.kind === 'checklist'
+              ? { ...i, ...patch, updatedAt: Date.now() }
+              : i,
+          ),
+        }));
+      },
+      addChart: (target, name) => {
+        const now = Date.now();
+        const item: ChartItemT = {
+          id: uid('itm'),
+          name: name?.trim() || 'New chart',
+          kind: 'chart',
+          chartType: 'bar',
+          data: [],
+          locationId: target.locationId,
+          groupId: target.groupId,
+          createdAt: now,
+          updatedAt: now,
+        };
+        setState((s) => ({
+          ...s,
+          items: [...s.items, item],
+          activeItemByGroup: { ...s.activeItemByGroup, [target.groupId]: item.id },
+        }));
+        return item;
+      },
+      updateChart: (id, patch) => {
+        setState((s) => ({
+          ...s,
+          items: s.items.map((i) =>
+            i.id === id && i.kind === 'chart'
+              ? { ...i, ...patch, updatedAt: Date.now() }
+              : i,
+          ),
+        }));
+      },
+      renameItem: (id, name) => {
+        setState((s) => ({
+          ...s,
+          items: s.items.map((i) =>
+            i.id === id ? { ...i, name, updatedAt: Date.now() } : i,
+          ),
+        }));
+      },
       deleteItem: (id) => {
         setState((s) => {
           const target = s.items.find((i) => i.id === id);
-          if (target && target.kind !== 'quote') {
-            void deleteBlob((target as FileItem).blobKey);
+          if (target && isFileItem(target)) {
+            void deleteBlob(target.blobKey);
             void deleteSearchText(target.id);
           }
           const next = { ...s.activeItemByGroup };
@@ -437,6 +521,17 @@ function inferKindFromFile(file: File) {
     return 'text' as const;
   }
   return 'unknown' as const;
+}
+
+function isFileItem(i: Item): i is FileItem {
+  return (
+    i.kind === 'spreadsheet' ||
+    i.kind === 'document' ||
+    i.kind === 'pdf' ||
+    i.kind === 'image' ||
+    i.kind === 'text' ||
+    i.kind === 'unknown'
+  );
 }
 
 function deriveQuoteName(text: string): string {

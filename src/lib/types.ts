@@ -22,6 +22,16 @@ export type ItemKind =
   | 'image'
   | 'text'
   | 'quote'
+  | 'checklist'
+  | 'chart'
+  | 'unknown';
+
+export type FileKind =
+  | 'spreadsheet'
+  | 'document'
+  | 'pdf'
+  | 'image'
+  | 'text'
   | 'unknown';
 
 export interface BaseItem {
@@ -35,7 +45,7 @@ export interface BaseItem {
 }
 
 export interface FileItem extends BaseItem {
-  kind: Exclude<ItemKind, 'quote'>;
+  kind: FileKind;
   mime: string;
   size: number;
   /** Stored in IndexedDB blob store, keyed by id */
@@ -50,4 +60,31 @@ export interface QuoteItem extends BaseItem {
   source?: string;
 }
 
-export type Item = FileItem | QuoteItem;
+export interface ChecklistEntry {
+  id: string;
+  text: string;
+  done: boolean;
+}
+
+export interface ChecklistItemT extends BaseItem {
+  kind: 'checklist';
+  entries: ChecklistEntry[];
+}
+
+export type ChartType = 'bar' | 'line' | 'pie';
+
+export interface ChartDataPoint {
+  id: string;
+  label: string;
+  value: number;
+}
+
+export interface ChartItemT extends BaseItem {
+  kind: 'chart';
+  chartType: ChartType;
+  data: ChartDataPoint[];
+  xLabel?: string;
+  yLabel?: string;
+}
+
+export type Item = FileItem | QuoteItem | ChecklistItemT | ChartItemT;

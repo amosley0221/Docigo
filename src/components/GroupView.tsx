@@ -5,6 +5,22 @@ import { Icon, type IconName } from './Icon';
 import { FileViewer } from './FileViewer';
 import { humanSize } from '../lib/files';
 
+function describeItem(item: Item): string {
+  switch (item.kind) {
+    case 'quote':
+      return `quote · ${item.text.length} chars`;
+    case 'checklist': {
+      const total = item.entries.length;
+      const done = item.entries.filter((e) => e.done).length;
+      return `checklist · ${done} of ${total} done`;
+    }
+    case 'chart':
+      return `${item.chartType} chart · ${item.data.length} point${item.data.length === 1 ? '' : 's'}`;
+    default:
+      return `${item.mime || item.kind} · ${humanSize(item.size)}`;
+  }
+}
+
 const ICON_FOR_KIND: Record<ItemKind, IconName> = {
   spreadsheet: 'sheet',
   document: 'doc',
@@ -12,6 +28,8 @@ const ICON_FOR_KIND: Record<ItemKind, IconName> = {
   image: 'image',
   text: 'text',
   quote: 'quote',
+  checklist: 'checklist',
+  chart: 'chart-bar',
   unknown: 'folder',
 };
 
@@ -27,6 +45,8 @@ export function GroupView({ group }: GroupViewProps) {
 
   const [dropdown, setDropdown] = useState(false);
   const ddRef = useRef<HTMLDivElement>(null);
+  const [newMenu, setNewMenu] = useState(false);
+  const newMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!dropdown) return;
@@ -37,6 +57,26 @@ export function GroupView({ group }: GroupViewProps) {
     return () => window.removeEventListener('mousedown', onClick);
   }, [dropdown]);
 
+  useEffect(() => {
+    if (!newMenu) return;
+    const onClick = (e: MouseEvent) => {
+      if (newMenuRef.current && !newMenuRef.current.contains(e.target as Node))
+        setNewMenu(false);
+    };
+    window.addEventListener('mousedown', onClick);
+    return () => window.removeEventListener('mousedown', onClick);
+  }, [newMenu]);
+
+  const target = { locationId: group.locationId, groupId: group.id };
+  const createChecklist = () => {
+    store.addChecklist(target, 'New checklist');
+    setNewMenu(false);
+  };
+  const createChart = () => {
+    store.addChart(target, 'New chart');
+    setNewMenu(false);
+  };
+
   const headerStats = useMemo(() => {
     const counts = items.reduce<Record<string, number>>((acc, i) => {
       acc[i.kind] = (acc[i.kind] ?? 0) + 1;
@@ -45,24 +85,19 @@ export function GroupView({ group }: GroupViewProps) {
     return counts;
   }, [items]);
 
-  if (items.length === 0) {
-    return (
-      <div className="flex h-full flex-col">
-        <GroupHeader group={group} subtitle="No items yet." />
-        <EmptyHint />
-      </div>
-    );
-  }
-
   return (
     <div className="flex h-full flex-col">
       <GroupHeader
         group={group}
-        subtitle={`${items.length} item${items.length === 1 ? '' : 's'} · ${Object.entries(
-          headerStats,
-        )
-          .map(([k, n]) => `${n} ${k}`)
-          .join(' · ')}`}
+        subtitle={
+          items.length === 0
+            ? 'No items yet.'
+            : `${items.length} item${items.length === 1 ? '' : 's'} · ${Object.entries(
+                headerStats,
+              )
+                .map(([k, n]) => `${n} ${k}`)
+                .join(' · ')}`
+        }
       />
 
       <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 border-b border-white/5 bg-black/20 px-4 py-2">
@@ -113,7 +148,55 @@ export function GroupView({ group }: GroupViewProps) {
             </div>
           )}
         </div>
-        <div className="flex justify-end">
+        <div className="flex items-center justify-end gap-2">
+          <div className="relative" ref={newMenuRef}>
+            <button
+              className="flex items-center gap-1.5 rounded-md border border-white/10 bg-white/[0.03] px-2 py-1 text-xs text-ink-200 transition hover:bg-white/[0.07]"
+              onClick={() => setNewMenu((v) => !v)}
+              title="Create a new item in this group"
+            >
+              <Icon name="plus" width={13} height={13} />
+              New
+              <Icon name="chevron-down" width={12} height={12} className="text-ink-400" />
+            </button>
+            {newMenu && (
+              <div className="glass-strong absolute right-0 top-[calc(100%+6px)] z-30 w-56 overflow-hidden rounded-xl shadow-soft">
+                <div className="px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wider text-ink-400">
+                  Create in {group.name}
+                </div>
+                <div className="p-1">
+                  <button
+                    onClick={createChecklist}
+                    className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm text-ink-200 hover:bg-white/5 hover:text-white"
+                  >
+                    <span className="flex h-7 w-7 items-center justify-center rounded-md bg-white/5 text-accent-300">
+                      <Icon name="checklist" width={14} height={14} />
+                    </span>
+                    <div className="flex-1">
+                      <div className="font-medium text-white">Checklist</div>
+                      <div className="text-[11px] text-ink-400">
+                        Tasks you can check off as you go.
+                      </div>
+                    </div>
+                  </button>
+                  <button
+                    onClick={createChart}
+                    className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm text-ink-200 hover:bg-white/5 hover:text-white"
+                  >
+                    <span className="flex h-7 w-7 items-center justify-center rounded-md bg-white/5 text-fuchsia-300">
+                      <Icon name="chart-bar" width={14} height={14} />
+                    </span>
+                    <div className="flex-1">
+                      <div className="font-medium text-white">Chart</div>
+                      <div className="text-[11px] text-ink-400">
+                        Bar, line, or pie from your own data.
+                      </div>
+                    </div>
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
           {active && (
             <button
               className="flex items-center gap-1.5 rounded-md border border-white/10 bg-white/[0.03] px-2 py-1 text-xs text-ink-300 transition hover:bg-red-500/15 hover:text-red-300"
@@ -133,12 +216,14 @@ export function GroupView({ group }: GroupViewProps) {
       </div>
 
       <div className="min-h-0 flex-1 overflow-hidden">
-        {active && (
+        {active ? (
           <div className="flex h-full justify-center">
             <div className="h-full w-[70%] min-w-0">
               <FileViewer item={active} />
             </div>
           </div>
+        ) : (
+          <EmptyHint />
         )}
       </div>
 
@@ -147,9 +232,7 @@ export function GroupView({ group }: GroupViewProps) {
           <div className="min-w-0 truncate">
             <span className="text-ink-200">{active.name}</span>
             <span className="mx-2">·</span>
-            {active.kind === 'quote'
-              ? `quote · ${active.text.length} chars`
-              : `${active.mime || active.kind} · ${humanSize(active.size)}`}
+            {describeItem(active)}
           </div>
         </div>
       )}
