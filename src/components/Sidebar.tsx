@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react';
 import { Icon, type IconName } from './Icon';
 import { useStore } from '../state/store';
-import type { LocationKind } from '../lib/types';
-import { Modal } from './Modal';
+import type { LocationKind, LocationT } from '../lib/types';
+import { LocationFormModal } from './LocationFormModal';
+import { GroupFormModal } from './GroupFormModal';
 
 const KIND_ICON: Record<LocationKind, IconName> = {
   work: 'briefcase',
@@ -20,17 +21,6 @@ const KIND_LABEL: Record<LocationKind, string> = {
   custom: 'Other',
 };
 
-const PALETTE = [
-  '#4361ff',
-  '#aa3bff',
-  '#ff5e7a',
-  '#22b8a6',
-  '#f59e0b',
-  '#10b981',
-  '#06b6d4',
-  '#e879f9',
-];
-
 interface SidebarProps {
   collapsed: boolean;
   onToggle: () => void;
@@ -40,11 +30,8 @@ interface SidebarProps {
 export function Sidebar({ collapsed, onToggle, onCollapse }: SidebarProps) {
   const store = useStore();
   const [openCreate, setOpenCreate] = useState(false);
+  const [editing, setEditing] = useState<LocationT | null>(null);
   const [openGroup, setOpenGroup] = useState(false);
-  const [groupName, setGroupName] = useState('');
-  const [name, setName] = useState('');
-  const [kind, setKind] = useState<LocationKind>('work');
-  const [color, setColor] = useState(PALETTE[0]);
 
   const active = store.locations.find((l) => l.id === store.activeLocationId) ?? null;
 
@@ -167,6 +154,17 @@ export function Sidebar({ collapsed, onToggle, onCollapse }: SidebarProps) {
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
+                      setEditing(loc);
+                    }}
+                    className="rounded-md p-1 text-ink-400 opacity-0 transition hover:bg-white/10 hover:text-white group-hover:opacity-100"
+                    title="Edit location"
+                    aria-label={`Edit ${loc.name}`}
+                  >
+                    <Icon name="edit" width={13} height={13} />
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
                       const detail =
                         groupCount === 0 && itemCount === 0
                           ? ''
@@ -237,119 +235,38 @@ export function Sidebar({ collapsed, onToggle, onCollapse }: SidebarProps) {
         </div>
       </aside>
 
-      <Modal
+      <LocationFormModal
         open={openCreate}
+        mode="create"
         onClose={() => setOpenCreate(false)}
-        title="New location"
-        subtitle="Create a workspace for a job, class, or project."
-        footer={
-          <>
-            <button className="btn-ghost" onClick={() => setOpenCreate(false)}>
-              Cancel
-            </button>
-            <button
-              className="btn-primary"
-              disabled={!name.trim()}
-              onClick={() => {
-                store.addLocation({ name: name.trim(), kind, color });
-                setName('');
-                setKind('work');
-                setColor(PALETTE[0]);
-                setOpenCreate(false);
-              }}
-            >
-              <Icon name="check" width={14} height={14} />
-              Create
-            </button>
-          </>
-        }
-      >
-        <div className="space-y-4">
-          <div>
-            <div className="label">Name</div>
-            <input
-              autoFocus
-              className="input"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Side Job, Bio 201, Travel Plans"
-            />
-          </div>
-          <div>
-            <div className="label">Type</div>
-            <div className="grid grid-cols-5 gap-2">
-              {(['work', 'school', 'personal', 'project', 'custom'] as LocationKind[]).map((k) => (
-                <button
-                  key={k}
-                  className={`flex flex-col items-center gap-1 rounded-lg border px-2 py-2 text-xs transition ${
-                    kind === k
-                      ? 'border-accent-500 bg-accent-500/15 text-white'
-                      : 'border-white/10 bg-white/[0.02] text-ink-200 hover:border-white/20'
-                  }`}
-                  onClick={() => setKind(k)}
-                >
-                  <Icon name={KIND_ICON[k]} />
-                  {KIND_LABEL[k]}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div>
-            <div className="label">Accent color</div>
-            <div className="flex flex-wrap gap-2">
-              {PALETTE.map((c) => (
-                <button
-                  key={c}
-                  className={`h-7 w-7 rounded-full transition ${
-                    color === c ? 'ring-2 ring-white/70' : 'ring-1 ring-white/10'
-                  }`}
-                  style={{ background: c }}
-                  onClick={() => setColor(c)}
-                  aria-label={c}
-                />
-              ))}
-            </div>
-          </div>
-        </div>
-      </Modal>
+        onSubmit={(value) => {
+          store.addLocation(value);
+          setOpenCreate(false);
+        }}
+      />
 
-      <Modal
+      <LocationFormModal
+        open={!!editing}
+        mode="edit"
+        initial={editing}
+        onClose={() => setEditing(null)}
+        onSubmit={(value) => {
+          if (editing) store.updateLocation(editing.id, value);
+          setEditing(null);
+        }}
+      />
+
+      <GroupFormModal
         open={openGroup}
+        mode="create"
+        contextLabel={active ? `Inside ${active.name}` : undefined}
         onClose={() => setOpenGroup(false)}
-        title="New group"
-        subtitle={active ? `Inside ${active.name}` : ''}
-        footer={
-          <>
-            <button className="btn-ghost" onClick={() => setOpenGroup(false)}>
-              Cancel
-            </button>
-            <button
-              className="btn-primary"
-              disabled={!groupName.trim() || !active}
-              onClick={() => {
-                if (!active) return;
-                store.addGroup(active.id, groupName.trim());
-                setGroupName('');
-                setOpenGroup(false);
-              }}
-            >
-              <Icon name="check" width={14} height={14} />
-              Create
-            </button>
-          </>
-        }
-      >
-        <div>
-          <div className="label">Group name</div>
-          <input
-            autoFocus
-            className="input"
-            value={groupName}
-            onChange={(e) => setGroupName(e.target.value)}
-            placeholder="e.g. Reports, Lecture Notes, Travel"
-          />
-        </div>
-      </Modal>
+        onSubmit={(name) => {
+          if (!active) return;
+          store.addGroup(active.id, name);
+          setOpenGroup(false);
+        }}
+      />
     </>
   );
 }

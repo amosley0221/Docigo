@@ -23,6 +23,10 @@ interface StoreActions {
   setActiveLocation: (id: string | null) => void;
   addLocation: (input: Omit<LocationT, 'id' | 'createdAt'>) => LocationT;
   renameLocation: (id: string, name: string) => void;
+  updateLocation: (
+    id: string,
+    patch: Partial<Pick<LocationT, 'name' | 'kind' | 'color'>>,
+  ) => void;
   deleteLocation: (id: string) => void;
   addGroup: (locationId: string, name: string) => GroupT;
   renameGroup: (id: string, name: string) => void;
@@ -145,6 +149,11 @@ export function StoreProvider({ children, userId }: StoreProviderProps) {
         setState((s) => ({
           ...s,
           locations: s.locations.map((l) => (l.id === id ? { ...l, name } : l)),
+        })),
+      updateLocation: (id, patch) =>
+        setState((s) => ({
+          ...s,
+          locations: s.locations.map((l) => (l.id === id ? { ...l, ...patch } : l)),
         })),
       deleteLocation: (id) => {
         setState((s) => {

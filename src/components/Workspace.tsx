@@ -3,6 +3,7 @@ import { useStore } from '../state/store';
 import { GroupView } from './GroupView';
 import { Icon } from './Icon';
 import type { GroupT } from '../lib/types';
+import { GroupFormModal } from './GroupFormModal';
 
 export function Workspace() {
   const store = useStore();
@@ -12,6 +13,7 @@ export function Workspace() {
     [active, store],
   );
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
+  const [editingGroup, setEditingGroup] = useState<GroupT | null>(null);
 
   const currentGroupId =
     activeGroupId && groups.find((g) => g.id === activeGroupId)
@@ -51,6 +53,7 @@ export function Workspace() {
               isActive={g.id === currentGroupId}
               count={store.itemsInGroup(g.id).length}
               onSelect={() => setActiveGroupId(g.id)}
+              onEdit={() => setEditingGroup(g)}
               onDelete={() => {
                 const count = store.itemsInGroup(g.id).length;
                 if (
@@ -71,6 +74,17 @@ export function Workspace() {
       <main className="min-h-0">
         {currentGroup ? <GroupView group={currentGroup} /> : <EmptyLocation locName={active.name} />}
       </main>
+      <GroupFormModal
+        open={!!editingGroup}
+        mode="edit"
+        initial={editingGroup}
+        contextLabel={active ? `Inside ${active.name}` : undefined}
+        onClose={() => setEditingGroup(null)}
+        onSubmit={(name) => {
+          if (editingGroup) store.renameGroup(editingGroup.id, name);
+          setEditingGroup(null);
+        }}
+      />
     </div>
   );
 }
@@ -80,12 +94,14 @@ function GroupRow({
   isActive,
   count,
   onSelect,
+  onEdit,
   onDelete,
 }: {
   group: GroupT;
   isActive: boolean;
   count: number;
   onSelect: () => void;
+  onEdit: () => void;
   onDelete: () => void;
 }) {
   return (
@@ -103,6 +119,17 @@ function GroupRow({
         <Icon name="folder" width={14} height={14} className="text-ink-400" />
         <span className="flex-1 truncate">{group.name}</span>
         <span className="text-xs text-ink-400">{count}</span>
+      </button>
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          onEdit();
+        }}
+        className="rounded-md p-1 text-ink-400 opacity-0 transition hover:bg-white/10 hover:text-white group-hover:opacity-100"
+        title="Rename group"
+        aria-label={`Rename ${group.name}`}
+      >
+        <Icon name="edit" width={13} height={13} />
       </button>
       <button
         onClick={(e) => {

@@ -42,8 +42,13 @@ interface AuthState {
 }
 
 interface AuthActions {
-  signIn: (username: string, password: string, stay: boolean) => Promise<void>;
-  signUp: (username: string, password: string, stay: boolean) => Promise<void>;
+  signIn: (identifier: string, password: string, stay: boolean) => Promise<void>;
+  signUp: (
+    username: string,
+    email: string,
+    password: string,
+    stay: boolean,
+  ) => Promise<void>;
   signOut: () => void;
 }
 
@@ -73,18 +78,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const signIn = useCallback<AuthActions['signIn']>(async (username, password, stay) => {
-    const u = await verifyUser(username, password);
-    if (!u) throw new Error('Wrong username or password');
+  const signIn = useCallback<AuthActions['signIn']>(async (identifier, password, stay) => {
+    const u = await verifyUser(identifier, password);
+    if (!u) throw new Error('Wrong username/email or password');
     writeSession({ userId: u.id, persistent: stay });
     setUser(u);
   }, []);
 
-  const signUp = useCallback<AuthActions['signUp']>(async (username, password, stay) => {
-    const u = await createUser(username, password);
-    writeSession({ userId: u.id, persistent: stay });
-    setUser(u);
-  }, []);
+  const signUp = useCallback<AuthActions['signUp']>(
+    async (username, email, password, stay) => {
+      const u = await createUser(username, email, password);
+      writeSession({ userId: u.id, persistent: stay });
+      setUser(u);
+    },
+    [],
+  );
 
   const signOut = useCallback<AuthActions['signOut']>(() => {
     writeSession(null);

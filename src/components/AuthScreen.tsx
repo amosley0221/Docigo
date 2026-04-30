@@ -8,6 +8,8 @@ export function AuthScreen() {
   const { signIn, signUp } = useAuth();
   const [mode, setMode] = useState<Mode>('signin');
   const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [stay, setStay] = useState(true);
@@ -24,9 +26,9 @@ export function AuthScreen() {
     setBusy(true);
     try {
       if (mode === 'signin') {
-        await signIn(username, password, stay);
+        await signIn(identifier, password, stay);
       } else {
-        await signUp(username, password, stay);
+        await signUp(username, email, password, stay);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong');
@@ -88,18 +90,47 @@ export function AuthScreen() {
           </div>
 
           <form onSubmit={submit} className="space-y-4">
-            <div>
-              <div className="label">Username</div>
-              <input
-                autoFocus
-                className="input"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                autoComplete="username"
-                placeholder="alex"
-                required
-              />
-            </div>
+            {mode === 'signin' ? (
+              <div>
+                <div className="label">Username or email</div>
+                <input
+                  autoFocus
+                  className="input"
+                  value={identifier}
+                  onChange={(e) => setIdentifier(e.target.value)}
+                  autoComplete="username"
+                  placeholder="alex or alex@example.com"
+                  required
+                />
+              </div>
+            ) : (
+              <>
+                <div>
+                  <div className="label">Username</div>
+                  <input
+                    autoFocus
+                    className="input"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    autoComplete="username"
+                    placeholder="alex"
+                    required
+                  />
+                </div>
+                <div>
+                  <div className="label">Email</div>
+                  <input
+                    className="input"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    autoComplete="email"
+                    placeholder="alex@example.com"
+                    required
+                  />
+                </div>
+              </>
+            )}
             <div>
               <div className="label">Password</div>
               <input
