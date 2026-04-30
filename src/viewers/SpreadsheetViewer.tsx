@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { getBlob } from '../lib/db';
 import type { FileItem } from '../lib/types';
 import { ViewerError, ViewerLoading } from './Status';
+import { Icon } from '../components/Icon';
 
 interface ParsedSheet {
   name: string;
@@ -12,12 +13,17 @@ export function SpreadsheetViewer({ item }: { item: FileItem }) {
   const [sheets, setSheets] = useState<ParsedSheet[] | null>(null);
   const [active, setActive] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [showFilters, setShowFilters] = useState(false);
+  const [filters, setFilters] = useState<Record<number, string>>({});
+  const [globalQuery, setGlobalQuery] = useState('');
 
   useEffect(() => {
     let cancelled = false;
     setSheets(null);
     setError(null);
     setActive(0);
+    setFilters({});
+    setGlobalQuery('');
     (async () => {
       try {
         const blob = await getBlob(item.blobKey);
@@ -45,15 +51,50 @@ export function SpreadsheetViewer({ item }: { item: FileItem }) {
     };
   }, [item.blobKey]);
 
+  // Reset filters when switching sheets
+  useEffect(() => {
+    setFilters({});
+    setGlobalQuery('');
+  }, [active]);
+
+  const current = sheets ? sheets[active] : null;
+  const headers = current?.rows[0] ?? [];
+  const body = current?.rows.slice(1) ?? [];
+  const colCount = current
+    ? Math.max(headers.length, ...body.map((r) => r.length))
+    : 0;
+
+  const filteredBody = useMemo(() => {
+    if (!current) return [];
+    const colFilters = Object.entries(filters)
+      .map(([c, q]) => [Number(c), q.trim().toLowerCase()] as const)
+      .filter(([, q]) => q.length > 0);
+    const gq = globalQuery.trim().toLowerCase();
+    if (colFilters.length === 0 && !gq) return body;
+    return body.filter((row) => {
+      if (colFilters.some(([c, q]) => !(row[c] ?? '').toLowerCase().includes(q))) {
+        return false;
+      }
+      if (gq) {
+        return row.some((cell) => (cell ?? '').toLowerCase().includes(gq));
+      }
+      return true;
+    });
+  }, [body, filters, globalQuery, current]);
+
+  const activeFilterCount =
+    Object.values(filters).filter((v) => v.trim().length > 0).length +
+    (globalQuery.trim() ? 1 : 0);
+
   if (error) return <ViewerError message={error} />;
   if (!sheets) return <ViewerLoading label="Reading spreadsheet…" />;
   if (sheets.length === 0)
     return <ViewerError message="Spreadsheet contains no sheets" />;
 
-  const current = sheets[active];
-  const headers = current.rows[0] ?? [];
-  const body = current.rows.slice(1);
-  const colCount = Math.max(headers.length, ...body.map((r) => r.length));
+  const clearAll = () => {
+    setFilters({});
+    setGlobalQuery('');
+  };
 
   return (
     <div className="flex h-full flex-col">
@@ -74,11 +115,58 @@ export function SpreadsheetViewer({ item }: { item: FileItem }) {
           ))}
         </div>
       )}
+
+      <div className="flex items-center gap-2 border-b border-white/5 bg-black/15 px-4 py-2">
+        <div className="relative flex-1 max-w-sm">
+          <Icon
+            name="search"
+            width={14}
+            height={14}
+            className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-400"
+          />
+          <input
+            className="input pl-8 py-1.5 text-sm"
+            placeholder="Search this sheet…"
+            value={globalQuery}
+            onChange={(e) => setGlobalQuery(e.target.value)}
+          />
+        </div>
+        <button
+          className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium transition ${
+            showFilters
+              ? 'border-accent-500/50 bg-accent-500/15 text-white'
+              : 'border-white/10 bg-white/[0.03] text-ink-200 hover:bg-white/[0.07]'
+          }`}
+          onClick={() => setShowFilters((v) => !v)}
+          title="Toggle column filters"
+        >
+          <Icon name="search" width={13} height={13} />
+          Column filters
+          {activeFilterCount > 0 && (
+            <span className="ml-0.5 rounded-full bg-accent-500/40 px-1.5 py-px text-[10px] font-bold text-white">
+              {activeFilterCount}
+            </span>
+          )}
+        </button>
+        {activeFilterCount > 0 && (
+          <button
+            className="rounded-md px-2 py-1 text-xs text-ink-300 hover:bg-white/5 hover:text-white"
+            onClick={clearAll}
+          >
+            Clear
+          </button>
+        )}
+        <div className="ml-auto text-xs text-ink-400">
+          {filteredBody.length} of {body.length} row
+          {body.length === 1 ? '' : 's'}
+        </div>
+      </div>
+
       <div className="flex-1 overflow-auto p-4">
         <div className="glass overflow-hidden rounded-xl">
           <div className="grid w-full text-sm" style={{ minWidth: `${colCount * 140}px` }}>
             <div
-              className="sticky top-0 grid border-b border-white/10 bg-black/40 backdrop-blur-md"
+              className="sticky top-0 z-10 grid border-b border-white/10 bg-black/40 backdrop-blur-md"
               style={{ gridTemplateColumns: `48px repeat(${colCount}, minmax(140px, 1fr))` }}
             >
               <div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-ink-500" />
@@ -92,7 +180,30 @@ export function SpreadsheetViewer({ item }: { item: FileItem }) {
                 </div>
               ))}
             </div>
-            {body.map((row, r) => (
+            {showFilters && (
+              <div
+                className="sticky z-10 grid border-b border-white/10 bg-black/30 backdrop-blur-md"
+                style={{
+                  gridTemplateColumns: `48px repeat(${colCount}, minmax(140px, 1fr))`,
+                  top: '36px',
+                }}
+              >
+                <div className="px-2 py-1.5 text-right text-[10px] text-ink-500">▾</div>
+                {Array.from({ length: colCount }).map((_, c) => (
+                  <div key={c} className="px-1.5 py-1.5">
+                    <input
+                      className="w-full rounded-md border border-white/10 bg-white/[0.04] px-2 py-1 text-xs text-white outline-none transition placeholder:text-ink-500 focus:border-accent-500/60 focus:bg-white/[0.07]"
+                      placeholder="Filter…"
+                      value={filters[c] ?? ''}
+                      onChange={(e) =>
+                        setFilters((f) => ({ ...f, [c]: e.target.value }))
+                      }
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+            {filteredBody.map((row, r) => (
               <div
                 key={r}
                 className="grid border-b border-white/5 transition hover:bg-white/[0.03]"
@@ -118,9 +229,11 @@ export function SpreadsheetViewer({ item }: { item: FileItem }) {
                 })}
               </div>
             ))}
-            {body.length === 0 && (
+            {filteredBody.length === 0 && (
               <div className="px-3 py-6 text-center text-sm text-ink-400">
-                Empty sheet.
+                {body.length === 0
+                  ? 'Empty sheet.'
+                  : 'No rows match the current filters.'}
               </div>
             )}
           </div>
@@ -139,4 +252,3 @@ function colLetter(i: number): string {
   } while (n >= 0);
   return s;
 }
-

@@ -53,9 +53,17 @@ function Shell() {
   const [queue, setQueue] = useState<Pending[]>([]);
   const [dropOverlay, setDropOverlay] = useState(false);
   const [duplicate, setDuplicate] = useState<DuplicateState | null>(null);
+  const [batchTarget, setBatchTarget] = useState<{
+    locationId: string;
+    groupId: string;
+  } | null>(null);
   const dragDepth = useRef(0);
 
   const current = queue[0] ?? null;
+  const fileQueueLength = useMemo(
+    () => queue.filter((p) => p.kind === 'file').length,
+    [queue],
+  );
 
   // Listen for files dropped anywhere
   useEffect(() => {
@@ -144,27 +152,58 @@ function Shell() {
     setQueue((q) => q.slice(1));
   }, []);
 
-  const handleAssign = useCallback(
-    async (target: { locationId: string; groupId: string }) => {
-      if (!current) return;
-      if (current.kind === 'quote') {
-        store.addQuote(current.text, target);
+  const processFileWithTarget = useCallback(
+    async (
+      pending: Pending,
+      target: { locationId: string; groupId: string },
+    ) => {
+      if (pending.kind === 'quote') {
+        store.addQuote(pending.text, target);
         closeCurrent();
         return;
       }
-      // File: check duplicate name within the chosen group
       const existing = store.items.find(
-        (i) => i.groupId === target.groupId && i.name === current.file.name,
+        (i) => i.groupId === target.groupId && i.name === pending.file.name,
       );
       if (existing) {
-        setDuplicate({ existing, file: current.file, target });
+        setDuplicate({ existing, file: pending.file, target });
         return;
       }
-      await store.addFile(current.file, target);
+      await store.addFile(pending.file, target);
       closeCurrent();
     },
-    [current, store, closeCurrent],
+    [store, closeCurrent],
   );
+
+  const handleAssign = useCallback(
+    async (
+      target: { locationId: string; groupId: string },
+      options?: { applyToAll?: boolean },
+    ) => {
+      if (!current) return;
+      if (options?.applyToAll && current.kind === 'file') {
+        setBatchTarget(target);
+      }
+      await processFileWithTarget(current, target);
+    },
+    [current, processFileWithTarget],
+  );
+
+  // When a batch target is set, drain remaining file pendings to that target.
+  useEffect(() => {
+    if (!batchTarget) return;
+    if (!current) {
+      setBatchTarget(null);
+      return;
+    }
+    if (duplicate) return; // wait for user resolution
+    if (current.kind !== 'file') {
+      // Hand control back to the modal for non-file items (quotes).
+      setBatchTarget(null);
+      return;
+    }
+    void processFileWithTarget(current, batchTarget);
+  }, [batchTarget, current, duplicate, processFileWithTarget]);
 
   const suggestedRename = useMemo(() => {
     if (!duplicate) return '';
@@ -196,9 +235,13 @@ function Shell() {
       {dropOverlay && <DropOverlay />}
 
       <AssignModal
-        open={!!current}
+        open={!!current && !batchTarget}
         pending={current}
-        onClose={closeCurrent}
+        fileQueueLength={fileQueueLength}
+        onClose={() => {
+          setBatchTarget(null);
+          closeCurrent();
+        }}
         onAssign={handleAssign}
       />
 
@@ -215,7 +258,10 @@ function Shell() {
             : null
         }
         suggestedName={suggestedRename}
-        onCancel={() => setDuplicate(null)}
+        onCancel={() => {
+          setDuplicate(null);
+          setBatchTarget(null);
+        }}
         onReplace={async () => {
           if (!duplicate) return;
           await store.addFile(duplicate.file, duplicate.target, {

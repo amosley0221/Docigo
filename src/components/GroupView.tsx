@@ -25,7 +25,6 @@ export function GroupView({ group }: GroupViewProps) {
   const activeId = store.activeItemByGroup[group.id] ?? items[items.length - 1]?.id ?? null;
   const active = items.find((i) => i.id === activeId) ?? items[items.length - 1] ?? null;
 
-  const tabsRef = useRef<HTMLDivElement>(null);
   const [dropdown, setDropdown] = useState(false);
   const ddRef = useRef<HTMLDivElement>(null);
 
@@ -66,69 +65,34 @@ export function GroupView({ group }: GroupViewProps) {
           .join(' · ')}`}
       />
 
-      <div className="flex items-center gap-2 border-b border-white/5 bg-black/20 px-3 py-2">
-        <div
-          ref={tabsRef}
-          className="flex flex-1 items-center gap-1 overflow-x-auto scroll-smooth"
-        >
-          {items.map((it) => {
-            const isActive = active?.id === it.id;
-            return (
-              <div
-                key={it.id}
-                className={`group/tab flex shrink-0 items-center gap-1 rounded-lg border pl-2.5 pr-1 py-1 text-sm transition ${
-                  isActive
-                    ? 'border-accent-500/60 bg-accent-500/15 text-white shadow-soft'
-                    : 'border-white/10 bg-white/[0.02] text-ink-200 hover:bg-white/[0.06]'
-                }`}
-                title={it.name}
-              >
-                <button
-                  onClick={() => store.setActiveItem(group.id, it.id)}
-                  className="flex items-center gap-2 py-0.5"
-                >
-                  <span
-                    className={`flex h-5 w-5 items-center justify-center rounded-md ${
-                      isActive ? 'text-white' : 'text-ink-300'
-                    }`}
-                  >
-                    <Icon name={ICON_FOR_KIND[it.kind]} width={13} height={13} />
-                  </span>
-                  <span className="max-w-[180px] truncate font-medium">{it.name}</span>
-                </button>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (confirm(`Remove “${it.name}” from ${group.name}?`)) {
-                      store.deleteItem(it.id);
-                    }
-                  }}
-                  className="rounded-md p-1 text-ink-400 opacity-0 transition hover:bg-red-500/15 hover:text-red-300 group-hover/tab:opacity-100"
-                  title="Remove"
-                  aria-label={`Remove ${it.name}`}
-                >
-                  <Icon name="x" width={12} height={12} />
-                </button>
-              </div>
-            );
-          })}
+      <div className="flex items-center gap-3 border-b border-white/5 bg-black/20 px-4 py-2">
+        <div className="text-[11px] font-semibold uppercase tracking-wider text-ink-400">
+          File
         </div>
-
-        <div className="relative" ref={ddRef}>
+        <div className="relative flex-1" ref={ddRef}>
           <button
-            className="btn-quiet"
+            className="flex w-full max-w-md items-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1.5 text-left text-sm text-white transition hover:bg-white/[0.08]"
             onClick={() => setDropdown((v) => !v)}
-            title="All items"
           >
-            <Icon name="chevron-down" width={14} height={14} />
-            All
+            {active && (
+              <span className="flex h-5 w-5 items-center justify-center rounded-md text-ink-200">
+                <Icon name={ICON_FOR_KIND[active.kind]} width={14} height={14} />
+              </span>
+            )}
+            <span className="flex-1 truncate font-medium">
+              {active ? active.name : 'Pick a file'}
+            </span>
+            <span className="text-xs text-ink-400">
+              {items.length} item{items.length === 1 ? '' : 's'}
+            </span>
+            <Icon name="chevron-down" width={14} height={14} className="text-ink-300" />
           </button>
           {dropdown && (
-            <div className="glass-strong absolute right-0 top-[calc(100%+6px)] z-30 w-72 overflow-hidden rounded-xl shadow-soft">
+            <div className="glass-strong absolute left-0 top-[calc(100%+6px)] z-30 w-full max-w-md overflow-hidden rounded-xl shadow-soft">
               <div className="px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wider text-ink-400">
                 Items in {group.name}
               </div>
-              <div className="max-h-72 overflow-y-auto p-1">
+              <div className="max-h-80 overflow-y-auto p-1">
                 {items.map((it) => (
                   <ItemRow
                     key={it.id}
@@ -138,28 +102,20 @@ export function GroupView({ group }: GroupViewProps) {
                       store.setActiveItem(group.id, it.id);
                       setDropdown(false);
                     }}
-                    onDelete={() => store.deleteItem(it.id)}
+                    onDelete={() => {
+                      if (confirm(`Remove “${it.name}” from ${group.name}?`)) {
+                        store.deleteItem(it.id);
+                      }
+                    }}
                   />
                 ))}
               </div>
             </div>
           )}
         </div>
-      </div>
-
-      <div className="min-h-0 flex-1">{active && <FileViewer item={active} />}</div>
-
-      {active && (
-        <div className="flex items-center justify-between gap-3 border-t border-white/5 bg-black/20 px-4 py-2 text-xs text-ink-400">
-          <div className="min-w-0 truncate">
-            <span className="text-ink-200">{active.name}</span>
-            <span className="mx-2">·</span>
-            {active.kind === 'quote'
-              ? `quote · ${active.text.length} chars`
-              : `${active.mime || active.kind} · ${humanSize(active.size)}`}
-          </div>
+        {active && (
           <button
-            className="flex items-center gap-1.5 rounded-md px-2 py-1 text-ink-300 transition hover:bg-red-500/15 hover:text-red-300"
+            className="flex items-center gap-1.5 rounded-md border border-white/10 bg-white/[0.03] px-2 py-1 text-xs text-ink-300 transition hover:bg-red-500/15 hover:text-red-300"
             onClick={() => {
               const label = active.kind === 'quote' ? 'this quote' : `“${active.name}”`;
               if (confirm(`Remove ${label}? This can’t be undone.`)) {
@@ -171,6 +127,28 @@ export function GroupView({ group }: GroupViewProps) {
             <Icon name="trash" width={13} height={13} />
             Remove
           </button>
+        )}
+      </div>
+
+      <div className="min-h-0 flex-1 overflow-hidden">
+        {active && (
+          <div className="flex h-full justify-center">
+            <div className="h-full w-[70%] min-w-0">
+              <FileViewer item={active} />
+            </div>
+          </div>
+        )}
+      </div>
+
+      {active && (
+        <div className="flex items-center justify-between gap-3 border-t border-white/5 bg-black/20 px-4 py-2 text-xs text-ink-400">
+          <div className="min-w-0 truncate">
+            <span className="text-ink-200">{active.name}</span>
+            <span className="mx-2">·</span>
+            {active.kind === 'quote'
+              ? `quote · ${active.text.length} chars`
+              : `${active.mime || active.kind} · ${humanSize(active.size)}`}
+          </div>
         </div>
       )}
     </div>
