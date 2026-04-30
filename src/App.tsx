@@ -10,7 +10,7 @@ import { nextUniqueName } from './lib/files';
 import type { Item } from './lib/types';
 import { AuthProvider, useAuth } from './state/auth';
 import { AuthScreen } from './components/AuthScreen';
-import { GUEST_USER_ID } from './lib/db';
+import { MigratePrompt } from './components/MigratePrompt';
 
 export default function App() {
   return (
@@ -21,7 +21,7 @@ export default function App() {
 }
 
 function AuthGate() {
-  const { user, isGuest, hydrated } = useAuth();
+  const { user, hydrated } = useAuth();
   if (!hydrated) {
     return (
       <div className="grid-bg flex h-full items-center justify-center text-sm text-ink-400">
@@ -32,11 +32,11 @@ function AuthGate() {
       </div>
     );
   }
-  if (!user && !isGuest) return <AuthScreen />;
-  const id = user?.id ?? GUEST_USER_ID;
+  if (!user) return <AuthScreen />;
   return (
-    <StoreProvider key={id} userId={id}>
+    <StoreProvider key={user.id} userId={user.id}>
       <Shell />
+      <MigratePrompt />
     </StoreProvider>
   );
 }
@@ -158,7 +158,7 @@ function Shell() {
       target: { locationId: string; groupId: string },
     ) => {
       if (pending.kind === 'quote') {
-        store.addQuote(pending.text, target);
+        await store.addQuote(pending.text, target);
         closeCurrent();
         return;
       }

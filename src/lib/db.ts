@@ -1,10 +1,18 @@
+/**
+ * Local IndexedDB layer.
+ *
+ * After the Supabase migration, the cloud is the source of truth for
+ * accounts, workspaces, items, and file blobs. This module is now used
+ * for two narrow things:
+ *  1. Surfacing pre-migration local data so users can push it up once.
+ *  2. The viewers' `getBlob(path)` API still works, but reads from
+ *     Supabase Storage now (so callers don't have to change).
+ */
 import { openDB, type IDBPDatabase } from 'idb';
+import { downloadBlob } from './api';
 
 const DB_NAME = 'docigo';
 const DB_VERSION = 3;
-
-export const GUEST_USER_ID = '__guest__';
-export const stateKeyFor = (userId: string) => `docigo-state-v1::${userId}`;
 
 let dbPromise: Promise<IDBPDatabase> | null = null;
 
@@ -30,75 +38,38 @@ export function db() {
   return dbPromise;
 }
 
-export async function listUsers<T = unknown>(): Promise<T[]> {
-  const d = await db();
-  return d.getAll('users') as Promise<T[]>;
+// ---------- Cloud-backed blob fetch ---------------------------------------
+
+/**
+ * Viewers used to call `getBlob(item.blobKey)`. After the cloud migration,
+ * `item.blobKey` is now a Supabase storage path. Keep this function shape
+ * so existing viewer code keeps working.
+ */
+export async function getBlob(path: string): Promise<Blob | undefined> {
+  if (!path) return undefined;
+  try {
+    return await downloadBlob(path);
+  } catch {
+    return undefined;
+  }
 }
 
-export async function getUser<T = unknown>(id: string): Promise<T | undefined> {
-  const d = await db();
-  return d.get('users', id) as Promise<T | undefined>;
-}
+// ---------- Pre-migration local data --------------------------------------
+// These remain so a one-time "Push my local workspace to the cloud" can read
+// the old data. They're not used by the running app once the user signs in.
 
-export async function putUser<T extends { id: string }>(user: T) {
-  const d = await db();
-  await d.put('users', user);
-}
-
-export async function putSearchText(itemId: string, text: string) {
-  const d = await db();
-  await d.put('searchIndex', text, itemId);
-}
-
-export async function getSearchTextsFor(
-  itemIds: string[],
-): Promise<Record<string, string>> {
-  if (itemIds.length === 0) return {};
-  const d = await db();
-  const tx = d.transaction('searchIndex', 'readonly');
-  const store = tx.objectStore('searchIndex');
-  const out: Record<string, string> = {};
-  await Promise.all(
-    itemIds.map(async (id) => {
-      const v = (await store.get(id)) as string | undefined;
-      if (typeof v === 'string') out[id] = v;
-    }),
-  );
-  await tx.done;
-  return out;
-}
-
-export async function deleteSearchText(itemId: string) {
-  const d = await db();
-  await d.delete('searchIndex', itemId);
-}
-
-export async function putBlob(key: string, blob: Blob) {
-  const d = await db();
-  await d.put('blobs', blob, key);
-}
-
-export async function getBlob(key: string): Promise<Blob | undefined> {
-  const d = await db();
-  return d.get('blobs', key);
-}
-
-export async function deleteBlob(key: string) {
-  const d = await db();
-  await d.delete('blobs', key);
-}
-
-export async function saveState<T>(key: string, value: T) {
-  const d = await db();
-  await d.put('state', value, key);
-}
-
-export async function loadState<T>(key: string): Promise<T | undefined> {
+export async function legacyLoadState<T>(key: string): Promise<T | undefined> {
   const d = await db();
   return d.get('state', key);
 }
 
-export async function deleteState(key: string) {
+export async function legacyGetBlob(key: string): Promise<Blob | undefined> {
   const d = await db();
-  await d.delete('state', key);
+  return d.get('blobs', key);
+}
+
+export async function legacyDeleteAllUserData(stateKey: string, blobKeys: string[]) {
+  const d = await db();
+  await d.delete('state', stateKey);
+  await Promise.all(blobKeys.map((k) => d.delete('blobs', k)));
 }

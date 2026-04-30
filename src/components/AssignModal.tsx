@@ -106,10 +106,10 @@ export function AssignModal({
           <button
             className="btn-primary"
             disabled={!canSubmit}
-            onClick={() => {
+            onClick={async () => {
               let gid = groupId;
               if (creatingGroup && newGroupName.trim()) {
-                const g = store.addGroup(locationId, newGroupName.trim());
+                const g = await store.addGroup(locationId, newGroupName.trim());
                 gid = g.id;
               }
               if (!gid) return;

@@ -5,20 +5,21 @@ import { Icon } from './Icon';
 type Mode = 'signin' | 'signup';
 
 export function AuthScreen() {
-  const { signIn, signUp, continueAsGuest } = useAuth();
+  const { signIn, signUp } = useAuth();
   const [mode, setMode] = useState<Mode>('signin');
   const [email, setEmail] = useState('');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
-  const [stay, setStay] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setInfo(null);
     if (mode === 'signup' && password !== confirm) {
       setError('Passwords don’t match');
       return;
@@ -26,9 +27,22 @@ export function AuthScreen() {
     setBusy(true);
     try {
       if (mode === 'signin') {
-        await signIn(email, password, stay);
+        await signIn(email, password);
       } else {
-        await signUp(email, firstName, lastName, password, stay);
+        const { needsConfirmation } = await signUp(
+          email,
+          firstName,
+          lastName,
+          password,
+        );
+        if (needsConfirmation) {
+          setInfo(
+            `We sent a confirmation link to ${email}. Click it to finish creating your account, then come back and sign in.`,
+          );
+          setMode('signin');
+          setPassword('');
+          setConfirm('');
+        }
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong');
@@ -52,19 +66,17 @@ export function AuthScreen() {
               Stay in flow
               <br />
               <span className="bg-gradient-to-r from-accent-300 to-fuchsia-400 bg-clip-text text-transparent">
-                across every job.
+                across every device.
               </span>
             </h1>
             <p className="mt-5 max-w-md text-base leading-relaxed text-ink-300">
-              One workspace for every part of your life. Drop a spreadsheet
-              into your day job, paste a quote into your class notes, and
-              switch between them with one click.
+              One workspace for every part of your life — sync your locations,
+              groups, files, and notes between every browser you sign in on.
             </p>
           </div>
           <ul className="mt-10 space-y-2 text-sm text-ink-300">
             <FeatureBullet icon="briefcase">
-              Per-account vault — your files stay private to your login on
-              this device.
+              Cloud-backed accounts — your work follows you.
             </FeatureBullet>
             <FeatureBullet icon="upload">
               Drag &amp; drop or paste anything; Docigo asks where it belongs.
@@ -85,9 +97,15 @@ export function AuthScreen() {
           </div>
           <div className="mb-6 text-sm text-ink-300">
             {mode === 'signin'
-              ? 'Sign in to access your private workspace.'
+              ? 'Sign in to access your workspace from anywhere.'
               : 'Tell us a little about you so we can save your work.'}
           </div>
+
+          {info && (
+            <div className="mb-4 rounded-lg border border-accent-500/30 bg-accent-500/10 px-3 py-2 text-sm text-accent-100">
+              {info}
+            </div>
+          )}
 
           <form onSubmit={submit} className="space-y-4">
             {mode === 'signup' && (
@@ -161,16 +179,6 @@ export function AuthScreen() {
               </div>
             )}
 
-            <label className="flex cursor-pointer items-center gap-2 text-sm text-ink-200 select-none">
-              <input
-                type="checkbox"
-                className="h-4 w-4 rounded border-white/20 bg-white/[0.05] text-accent-500"
-                checked={stay}
-                onChange={(e) => setStay(e.target.checked)}
-              />
-              Keep me signed in on this device
-            </label>
-
             {error && (
               <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-200">
                 {error}
@@ -205,6 +213,7 @@ export function AuthScreen() {
                   onClick={() => {
                     setMode('signup');
                     setError(null);
+                    setInfo(null);
                   }}
                 >
                   Create an account
@@ -218,6 +227,7 @@ export function AuthScreen() {
                   onClick={() => {
                     setMode('signin');
                     setError(null);
+                    setInfo(null);
                   }}
                 >
                   Sign in
@@ -226,27 +236,10 @@ export function AuthScreen() {
             )}
           </div>
 
-          <div className="my-5 flex items-center gap-3 text-[11px] uppercase tracking-wider text-ink-500">
-            <div className="h-px flex-1 bg-white/10" />
-            or
-            <div className="h-px flex-1 bg-white/10" />
-          </div>
-
-          <button
-            type="button"
-            onClick={continueAsGuest}
-            className="btn-quiet w-full justify-center py-2 text-sm font-medium"
-          >
-            <Icon name="spark" width={14} height={14} />
-            Continue without an account
-          </button>
-
           <div className="mt-5 rounded-lg border border-white/5 bg-white/[0.02] p-3 text-xs leading-relaxed text-ink-400">
-            <span className="font-medium text-ink-200">Optional sign-in.</span>{' '}
-            You can use Docigo right away — registering is only needed if you
-            want to keep your work tied to an account so it’s waiting for you
-            when you come back. Either way, files stay on this device and
-            never leave your browser.
+            <span className="font-medium text-ink-200">Cloud sync.</span> Your
+            workspace is stored in your private Supabase account so you can
+            access it from any device you sign in on.
           </div>
         </div>
       </div>

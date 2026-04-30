@@ -7,226 +7,165 @@ import {
   useState,
 } from 'react';
 import type { ReactNode } from 'react';
-import {
-  changeUserPassword,
-  createUser,
-  getUserById,
-  updateUserProfile,
-  verifyUser,
-  type UserRecord,
-} from '../lib/auth';
-import {
-  GUEST_USER_ID,
-  deleteState,
-  loadState,
-  saveState,
-  stateKeyFor,
-} from '../lib/db';
+import type { Session, User } from '@supabase/supabase-js';
+import { supabase } from '../lib/supabase';
 import { requestPersistence } from '../lib/storage';
 
-const SESSION_KEY = 'docigo.session.v1';
-const GUEST_KEY = 'docigo.guest.v1';
-
-interface SessionPayload {
-  userId: string;
-  persistent: boolean;
+export interface AppUser {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  display: string;
 }
 
-function readSession(): SessionPayload | null {
-  try {
-    const local = localStorage.getItem(SESSION_KEY);
-    if (local) return JSON.parse(local) as SessionPayload;
-    const session = sessionStorage.getItem(SESSION_KEY);
-    if (session) return JSON.parse(session) as SessionPayload;
-  } catch {
-    // ignore
-  }
-  return null;
-}
-
-function writeSession(payload: SessionPayload | null) {
-  localStorage.removeItem(SESSION_KEY);
-  sessionStorage.removeItem(SESSION_KEY);
-  if (!payload) return;
-  const target = payload.persistent ? localStorage : sessionStorage;
-  target.setItem(SESSION_KEY, JSON.stringify(payload));
-}
-
-function readGuest(): boolean {
-  try {
-    return localStorage.getItem(GUEST_KEY) === '1';
-  } catch {
-    return false;
-  }
-}
-
-function writeGuest(active: boolean) {
-  if (active) localStorage.setItem(GUEST_KEY, '1');
-  else localStorage.removeItem(GUEST_KEY);
+function toAppUser(u: User | null | undefined): AppUser | null {
+  if (!u || !u.email) return null;
+  const meta = (u.user_metadata ?? {}) as Record<string, unknown>;
+  const firstName =
+    typeof meta.first_name === 'string' ? meta.first_name : '';
+  const lastName = typeof meta.last_name === 'string' ? meta.last_name : '';
+  const display = `${firstName} ${lastName}`.trim() || u.email;
+  return {
+    id: u.id,
+    email: u.email,
+    firstName,
+    lastName,
+    display,
+  };
 }
 
 interface AuthState {
-  user: UserRecord | null;
-  isGuest: boolean;
+  user: AppUser | null;
   hydrated: boolean;
 }
 
 interface AuthActions {
-  signIn: (email: string, password: string, stay: boolean) => Promise<void>;
+  signIn: (email: string, password: string) => Promise<void>;
   signUp: (
     email: string,
     firstName: string,
     lastName: string,
     password: string,
-    stay: boolean,
-  ) => Promise<void>;
-  signOut: () => void;
-  continueAsGuest: () => void;
-  exitGuest: () => void;
+  ) => Promise<{ needsConfirmation: boolean }>;
+  signOut: () => Promise<void>;
   updateProfile: (patch: {
     firstName?: string;
     lastName?: string;
     email?: string;
   }) => Promise<void>;
-  changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
+  changePassword: (newPassword: string) => Promise<void>;
 }
 
 type Auth = AuthState & AuthActions;
 
 const AuthCtx = createContext<Auth | null>(null);
 
-async function migrateGuestStateTo(userId: string) {
-  const guestKey = stateKeyFor(GUEST_USER_ID);
-  const targetKey = stateKeyFor(userId);
-  const guestState = await loadState<unknown>(guestKey);
-  if (!guestState) return;
-  const existing = await loadState<unknown>(targetKey);
-  // Only migrate when the new account doesn't already have data, to avoid
-  // clobbering an established account.
-  if (existing) return;
-  await saveState(targetKey, guestState);
-  await deleteState(guestKey);
-}
-
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<UserRecord | null>(null);
-  const [isGuest, setIsGuest] = useState(false);
+  const [user, setUser] = useState<AppUser | null>(null);
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
-    (async () => {
-      const session = readSession();
-      if (session) {
-        const u = await getUserById(session.userId);
-        if (!cancelled) {
-          if (u) {
-            setUser(u);
-            writeGuest(false);
-            void requestPersistence();
-          } else {
-            writeSession(null);
-          }
-        }
-      } else if (readGuest()) {
-        if (!cancelled) {
-          setIsGuest(true);
-          void requestPersistence();
-        }
-      }
-      if (!cancelled) setHydrated(true);
-    })();
+    supabase.auth.getSession().then(({ data }) => {
+      if (cancelled) return;
+      const u = toAppUser(data.session?.user);
+      setUser(u);
+      setHydrated(true);
+      if (u) void requestPersistence();
+    });
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session: Session | null) => {
+      const u = toAppUser(session?.user);
+      setUser(u);
+      if (u) void requestPersistence();
+    });
     return () => {
       cancelled = true;
+      sub.subscription.unsubscribe();
     };
   }, []);
 
-  const signIn = useCallback<AuthActions['signIn']>(async (email, password, stay) => {
-    const u = await verifyUser(email, password);
-    if (!u) throw new Error('Wrong email or password');
-    writeSession({ userId: u.id, persistent: stay });
-    writeGuest(false);
-    setIsGuest(false);
-    setUser(u);
-    void requestPersistence();
+  const signIn = useCallback<AuthActions['signIn']>(async (email, password) => {
+    const { error } = await supabase.auth.signInWithPassword({
+      email: email.trim(),
+      password,
+    });
+    if (error) throw new Error(error.message);
   }, []);
 
   const signUp = useCallback<AuthActions['signUp']>(
-    async (email, firstName, lastName, password, stay) => {
-      const u = await createUser(email, firstName, lastName, password);
-      // If the user was working as a guest, carry that work into their new
-      // account so "save my work" actually preserves the session.
-      await migrateGuestStateTo(u.id);
-      writeSession({ userId: u.id, persistent: stay });
-      writeGuest(false);
-      setIsGuest(false);
-      setUser(u);
-      void requestPersistence();
+    async (email, firstName, lastName, password) => {
+      const trimmedFirst = firstName.trim();
+      const trimmedLast = lastName.trim();
+      if (!trimmedFirst) throw new Error('First name is required');
+      if (!trimmedLast) throw new Error('Last name is required');
+      const { data, error } = await supabase.auth.signUp({
+        email: email.trim(),
+        password,
+        options: {
+          data: { first_name: trimmedFirst, last_name: trimmedLast },
+        },
+      });
+      if (error) throw new Error(error.message);
+      // If email confirmation is enabled, session will be null until the
+      // user clicks the link.
+      const needsConfirmation = !data.session;
+      return { needsConfirmation };
     },
     [],
   );
 
-  const signOut = useCallback<AuthActions['signOut']>(() => {
-    writeSession(null);
-    writeGuest(false);
-    setUser(null);
-    setIsGuest(false);
-  }, []);
-
-  const continueAsGuest = useCallback<AuthActions['continueAsGuest']>(() => {
-    writeGuest(true);
-    setIsGuest(true);
-    void requestPersistence();
-  }, []);
-
-  const exitGuest = useCallback<AuthActions['exitGuest']>(() => {
-    writeGuest(false);
-    setIsGuest(false);
+  const signOut = useCallback<AuthActions['signOut']>(async () => {
+    await supabase.auth.signOut();
   }, []);
 
   const updateProfile = useCallback<AuthActions['updateProfile']>(
     async (patch) => {
-      if (!user) throw new Error('Not signed in');
-      const next = await updateUserProfile(user.id, patch);
-      setUser(next);
+      const updates: { email?: string; data?: Record<string, string> } = {};
+      const meta: Record<string, string> = {};
+      if (patch.firstName !== undefined) {
+        const f = patch.firstName.trim();
+        if (!f) throw new Error('First name is required');
+        meta.first_name = f;
+      }
+      if (patch.lastName !== undefined) {
+        const l = patch.lastName.trim();
+        if (!l) throw new Error('Last name is required');
+        meta.last_name = l;
+      }
+      if (Object.keys(meta).length > 0) updates.data = meta;
+      if (patch.email !== undefined) {
+        const e = patch.email.trim();
+        if (!e) throw new Error('Email is required');
+        updates.email = e;
+      }
+      const { error } = await supabase.auth.updateUser(updates);
+      if (error) throw new Error(error.message);
     },
-    [user],
+    [],
   );
 
   const changePassword = useCallback<AuthActions['changePassword']>(
-    async (currentPassword, newPassword) => {
-      if (!user) throw new Error('Not signed in');
-      const next = await changeUserPassword(user.id, currentPassword, newPassword);
-      setUser(next);
+    async (newPassword) => {
+      if (newPassword.length < 6)
+        throw new Error('Password must be at least 6 characters');
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) throw new Error(error.message);
     },
-    [user],
+    [],
   );
 
   const value = useMemo<Auth>(
     () => ({
       user,
-      isGuest,
       hydrated,
       signIn,
       signUp,
       signOut,
-      continueAsGuest,
-      exitGuest,
       updateProfile,
       changePassword,
     }),
-    [
-      user,
-      isGuest,
-      hydrated,
-      signIn,
-      signUp,
-      signOut,
-      continueAsGuest,
-      exitGuest,
-      updateProfile,
-      changePassword,
-    ],
+    [user, hydrated, signIn, signUp, signOut, updateProfile, changePassword],
   );
 
   return <AuthCtx.Provider value={value}>{children}</AuthCtx.Provider>;

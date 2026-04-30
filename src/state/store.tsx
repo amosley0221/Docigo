@@ -1,5 +1,6 @@
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useMemo,
@@ -16,41 +17,33 @@ import type {
   LocationT,
   QuoteItem,
 } from '../lib/types';
-import { uid } from '../lib/files';
-import {
-  deleteBlob,
-  deleteSearchText,
-  getSearchTextsFor,
-  loadState,
-  putBlob,
-  putSearchText,
-  saveState,
-  stateKeyFor,
-} from '../lib/db';
 import { extractSearchText } from '../lib/extract';
+import * as api from '../lib/api';
 
 interface StoreState {
   locations: LocationT[];
   groups: GroupT[];
   items: Item[];
   activeLocationId: string | null;
-  activeGroupByLocation: Record<string, string>; // locationId -> groupId
-  activeItemByGroup: Record<string, string>; // groupId -> itemId
+  activeGroupByLocation: Record<string, string>;
+  activeItemByGroup: Record<string, string>;
 }
 
 interface StoreActions {
   setActiveLocation: (id: string | null) => void;
-  addLocation: (input: Omit<LocationT, 'id' | 'createdAt'>) => LocationT;
+  addLocation: (
+    input: Omit<LocationT, 'id' | 'createdAt'>,
+  ) => Promise<LocationT>;
   renameLocation: (id: string, name: string) => void;
   updateLocation: (
     id: string,
     patch: Partial<Pick<LocationT, 'name' | 'kind' | 'color'>>,
   ) => void;
-  deleteLocation: (id: string) => void;
+  deleteLocation: (id: string) => Promise<void>;
   reorderLocations: (orderedIds: string[]) => void;
-  addGroup: (locationId: string, name: string) => GroupT;
+  addGroup: (locationId: string, name: string) => Promise<GroupT>;
   renameGroup: (id: string, name: string) => void;
-  deleteGroup: (id: string) => void;
+  deleteGroup: (id: string) => Promise<void>;
   reorderGroups: (locationId: string, orderedIds: string[]) => void;
   setActiveGroup: (locationId: string, groupId: string) => void;
   addFile: (
@@ -62,85 +55,54 @@ interface StoreActions {
     text: string,
     target: { locationId: string; groupId: string },
     source?: string,
-  ) => QuoteItem;
+  ) => Promise<QuoteItem>;
   addChecklist: (
     target: { locationId: string; groupId: string },
     name?: string,
-  ) => ChecklistItemT;
-  updateChecklist: (id: string, patch: Partial<Omit<ChecklistItemT, 'id' | 'kind'>>) => void;
+  ) => Promise<ChecklistItemT>;
+  updateChecklist: (
+    id: string,
+    patch: Partial<Pick<ChecklistItemT, 'name' | 'entries'>>,
+  ) => void;
   addChart: (
     target: { locationId: string; groupId: string },
     name?: string,
-  ) => ChartItemT;
-  updateChart: (id: string, patch: Partial<Omit<ChartItemT, 'id' | 'kind'>>) => void;
+  ) => Promise<ChartItemT>;
+  updateChart: (
+    id: string,
+    patch: Partial<
+      Pick<ChartItemT, 'name' | 'chartType' | 'data' | 'xLabel' | 'yLabel'>
+    >,
+  ) => void;
   renameItem: (id: string, name: string) => void;
-  deleteItem: (id: string) => void;
+  deleteItem: (id: string) => Promise<void>;
   setActiveItem: (groupId: string, itemId: string) => void;
   itemsInGroup: (groupId: string) => Item[];
   groupsInLocation: (locationId: string) => GroupT[];
-  /** Map of itemId → extracted searchable text. Empty entries omitted. */
   searchTexts: Record<string, string>;
+  refresh: () => Promise<void>;
+  /** Returns true once the initial load from Supabase has finished. */
+  ready: boolean;
 }
 
 type Store = StoreState & StoreActions;
 
 const StoreCtx = createContext<Store | null>(null);
 
-const sampleColors = ['#4361ff', '#aa3bff', '#ff5e7a', '#22b8a6', '#f59e0b', '#10b981'];
+const PALETTE = [
+  '#4361ff',
+  '#aa3bff',
+  '#ff5e7a',
+  '#22b8a6',
+  '#f59e0b',
+  '#10b981',
+];
 
-function defaultState(): StoreState {
-  const work: LocationT = {
-    id: uid('loc'),
-    name: 'Main Job',
-    kind: 'work',
-    color: sampleColors[0],
-    createdAt: Date.now(),
-  };
-  const school: LocationT = {
-    id: uid('loc'),
-    name: 'School',
-    kind: 'school',
-    color: sampleColors[1],
-    createdAt: Date.now() + 1,
-  };
-  const personal: LocationT = {
-    id: uid('loc'),
-    name: 'Personal',
-    kind: 'personal',
-    color: sampleColors[3],
-    createdAt: Date.now() + 2,
-  };
-  const groups: GroupT[] = [
-    { id: uid('grp'), locationId: work.id, name: 'Inbox', createdAt: Date.now() },
-    { id: uid('grp'), locationId: work.id, name: 'Reports', createdAt: Date.now() + 1 },
-    { id: uid('grp'), locationId: school.id, name: 'Notes', createdAt: Date.now() + 2 },
-    { id: uid('grp'), locationId: personal.id, name: 'Ideas', createdAt: Date.now() + 3 },
-  ];
-  return {
-    locations: [work, school, personal],
-    groups,
-    items: [],
-    activeLocationId: work.id,
-    activeGroupByLocation: {},
-    activeItemByGroup: {},
-  };
-}
-
-/**
- * Backfill missing fields on saved state so older persisted records keep
- * working when new top-level keys are added to StoreState.
- */
-function withDefaults(saved: Partial<StoreState>): StoreState {
-  return {
-    locations: saved.locations ?? [],
-    groups: saved.groups ?? [],
-    items: saved.items ?? [],
-    activeLocationId:
-      saved.activeLocationId ?? saved.locations?.[0]?.id ?? null,
-    activeGroupByLocation: saved.activeGroupByLocation ?? {},
-    activeItemByGroup: saved.activeItemByGroup ?? {},
-  };
-}
+const STARTER_LOCATIONS: Omit<LocationT, 'id' | 'createdAt'>[] = [
+  { name: 'Main Job', kind: 'work', color: PALETTE[0] },
+  { name: 'School', kind: 'school', color: PALETTE[1] },
+  { name: 'Personal', kind: 'personal', color: PALETTE[3] },
+];
 
 interface StoreProviderProps {
   children: ReactNode;
@@ -148,365 +110,601 @@ interface StoreProviderProps {
 }
 
 export function StoreProvider({ children, userId }: StoreProviderProps) {
-  const [state, setState] = useState<StoreState>(defaultState);
-  const [searchTexts, setSearchTexts] = useState<Record<string, string>>({});
-  const [hydrated, setHydrated] = useState(false);
-  const persistRef = useRef<number | null>(null);
-  const stateKey = stateKeyFor(userId);
+  const [state, setState] = useState<StoreState>(() => emptyState());
+  const [ready, setReady] = useState(false);
+  // Track in-flight async ops so we don't churn the user with errors that
+  // race with optimistic updates.
+  const writeErrorRef = useRef<unknown>(null);
 
+  const reportError = useCallback((err: unknown) => {
+    writeErrorRef.current = err;
+    // eslint-disable-next-line no-console
+    console.error('Sync error:', err);
+  }, []);
+
+  const refresh = useCallback(async () => {
+    const [locs, grps, its] = await Promise.all([
+      api.fetchLocations(userId),
+      api.fetchGroups(userId),
+      api.fetchItems(userId),
+    ]);
+    setState((s) => {
+      const activeLoc =
+        locs.find((l) => l.id === s.activeLocationId)?.id ?? locs[0]?.id ?? null;
+      return {
+        ...s,
+        locations: locs,
+        groups: grps,
+        items: its,
+        activeLocationId: activeLoc,
+      };
+    });
+  }, [userId]);
+
+  // Initial hydrate
   useEffect(() => {
     let cancelled = false;
-    setHydrated(false);
-    setState(defaultState());
-    setSearchTexts({});
+    setReady(false);
+    setState(emptyState());
     (async () => {
-      const saved = await loadState<StoreState>(stateKey);
-      if (cancelled) return;
-      const next =
-        saved && saved.locations?.length ? withDefaults(saved) : defaultState();
-      setState(next);
-      const ids = next.items.filter(isFileItem).map((i) => i.id);
-      const indexed = await getSearchTextsFor(ids);
-      if (cancelled) return;
-      setSearchTexts(indexed);
-      setHydrated(true);
+      try {
+        const [locs, grps, its] = await Promise.all([
+          api.fetchLocations(userId),
+          api.fetchGroups(userId),
+          api.fetchItems(userId),
+        ]);
+        // First-time users get the starter set seeded server-side once.
+        let seededLocs = locs;
+        if (locs.length === 0 && grps.length === 0 && its.length === 0) {
+          seededLocs = await seedStarter(userId);
+        }
+        if (cancelled) return;
+        setState({
+          locations: seededLocs,
+          groups: grps,
+          items: its,
+          activeLocationId: seededLocs[0]?.id ?? null,
+          activeGroupByLocation: {},
+          activeItemByGroup: {},
+        });
+      } catch (err) {
+        reportError(err);
+      } finally {
+        if (!cancelled) setReady(true);
+      }
     })();
     return () => {
       cancelled = true;
     };
-  }, [stateKey]);
+  }, [userId, reportError]);
 
+  // Refetch when window regains focus, so other-device changes show up.
   useEffect(() => {
-    if (!hydrated) return;
-    if (persistRef.current) window.clearTimeout(persistRef.current);
-    persistRef.current = window.setTimeout(() => {
-      // Strip transient cache field on file items before persisting.
-      const safe: StoreState = {
-        ...state,
-        items: state.items.map((it) =>
-          isFileItem(it) ? { ...it, cache: undefined } : it,
-        ),
-      };
-      saveState(stateKey, safe);
-    }, 200);
-  }, [state, hydrated, stateKey]);
+    const onFocus = () => {
+      void refresh();
+    };
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, [refresh]);
 
+  // Build action callbacks. We do optimistic local mutations first, then
+  // the matching DB write in the background. Failures are logged.
   const actions = useMemo<StoreActions>(() => {
-    return {
-      setActiveLocation: (id) =>
-        setState((s) => ({ ...s, activeLocationId: id })),
-      addLocation: (input) => {
-        const loc: LocationT = { ...input, id: uid('loc'), createdAt: Date.now() };
-        setState((s) => ({
-          ...s,
-          locations: [...s.locations, loc],
-          activeLocationId: loc.id,
-        }));
-        return loc;
-      },
-      renameLocation: (id, name) =>
-        setState((s) => ({
-          ...s,
-          locations: s.locations.map((l) => (l.id === id ? { ...l, name } : l)),
-        })),
-      updateLocation: (id, patch) =>
-        setState((s) => ({
-          ...s,
-          locations: s.locations.map((l) => (l.id === id ? { ...l, ...patch } : l)),
-        })),
-      deleteLocation: (id) => {
-        setState((s) => {
-          const groupsToRemove = s.groups.filter((g) => g.locationId === id);
-          const groupIds = new Set(groupsToRemove.map((g) => g.id));
-          const itemsToRemove = s.items.filter((i) => groupIds.has(i.groupId));
-          itemsToRemove.forEach((i) => {
-            if (isFileItem(i)) {
-              void deleteBlob(i.blobKey);
-              void deleteSearchText(i.id);
-            }
-          });
-          const remaining = s.locations.filter((l) => l.id !== id);
-          const nextActiveGroup = { ...s.activeGroupByLocation };
-          delete nextActiveGroup[id];
-          const nextActiveItem = { ...s.activeItemByGroup };
-          for (const gid of groupIds) delete nextActiveItem[gid];
-          return {
-            ...s,
-            locations: remaining,
-            groups: s.groups.filter((g) => g.locationId !== id),
-            items: s.items.filter((i) => !groupIds.has(i.groupId)),
-            activeLocationId:
-              s.activeLocationId === id ? remaining[0]?.id ?? null : s.activeLocationId,
-            activeGroupByLocation: nextActiveGroup,
-            activeItemByGroup: nextActiveItem,
-          };
-        });
-      },
-      reorderLocations: (orderedIds) => {
-        setState((s) => {
-          const byId = new Map(s.locations.map((l) => [l.id, l]));
-          const reordered: LocationT[] = [];
-          for (const id of orderedIds) {
-            const l = byId.get(id);
-            if (l) {
-              reordered.push(l);
-              byId.delete(id);
-            }
-          }
-          // Append any locations not present in the ordered list (defensive).
-          for (const l of byId.values()) reordered.push(l);
-          return { ...s, locations: reordered };
-        });
-      },
-      addGroup: (locationId, name) => {
-        const g: GroupT = { id: uid('grp'), locationId, name, createdAt: Date.now() };
-        setState((s) => ({ ...s, groups: [...s.groups, g] }));
-        return g;
-      },
-      renameGroup: (id, name) =>
-        setState((s) => ({
-          ...s,
-          groups: s.groups.map((g) => (g.id === id ? { ...g, name } : g)),
-        })),
-      deleteGroup: (id) => {
-        setState((s) => {
-          const remove = s.items.filter((i) => i.groupId === id);
-          remove.forEach((i) => {
-            if (isFileItem(i)) {
-              void deleteBlob(i.blobKey);
-              void deleteSearchText(i.id);
-            }
-          });
-          const nextActiveItem = { ...s.activeItemByGroup };
-          delete nextActiveItem[id];
-          const nextActiveGroup = { ...s.activeGroupByLocation };
-          for (const k of Object.keys(nextActiveGroup)) {
-            if (nextActiveGroup[k] === id) delete nextActiveGroup[k];
-          }
-          return {
-            ...s,
-            groups: s.groups.filter((g) => g.id !== id),
-            items: s.items.filter((i) => i.groupId !== id),
-            activeItemByGroup: nextActiveItem,
-            activeGroupByLocation: nextActiveGroup,
-          };
-        });
-      },
-      reorderGroups: (locationId, orderedIds) => {
-        setState((s) => {
-          const inLocation = s.groups.filter((g) => g.locationId === locationId);
-          const byId = new Map(inLocation.map((g) => [g.id, g]));
-          const reorderedInLoc: GroupT[] = [];
-          for (const id of orderedIds) {
-            const g = byId.get(id);
-            if (g) {
-              reorderedInLoc.push(g);
-              byId.delete(id);
-            }
-          }
-          for (const g of byId.values()) reorderedInLoc.push(g);
-          // Stitch back: keep groups in other locations in their existing
-          // positions; replace the in-location groups in their slots with the
-          // newly ordered sequence.
-          const result: GroupT[] = [];
-          let i = 0;
-          for (const g of s.groups) {
-            if (g.locationId === locationId) {
-              const next = reorderedInLoc[i++];
-              if (next) result.push(next);
-            } else {
-              result.push(g);
-            }
-          }
-          return { ...s, groups: result };
-        });
-      },
-      addFile: async (file, target, options) => {
-        const id = options?.replaceItemId ?? uid('itm');
-        const blobKey = `blob_${id}`;
-        await putBlob(blobKey, file);
-        const kind = inferKindFromFile(file);
-        const finalName = options?.renameTo ?? file.name;
-        const now = Date.now();
-        const item: FileItem = {
+    const setActiveLocation = (id: string | null) =>
+      setState((s) => ({ ...s, activeLocationId: id }));
+
+    const addLocation = async (input: Omit<LocationT, 'id' | 'createdAt'>) => {
+      const id = crypto.randomUUID();
+      const createdAt = Date.now();
+      const loc: LocationT = { ...input, id, createdAt };
+      setState((s) => ({
+        ...s,
+        locations: [...s.locations, loc],
+        activeLocationId: id,
+      }));
+      try {
+        const position = state.locations.length;
+        await api.insertLocation(userId, {
           id,
-          name: finalName,
-          kind,
-          mime: file.type,
-          size: file.size,
-          blobKey,
-          locationId: target.locationId,
-          groupId: target.groupId,
-          createdAt: now,
-          updatedAt: now,
-        };
-        setState((s) => {
-          const replacing = options?.replaceItemId
-            ? s.items.some((i) => i.id === options.replaceItemId)
-            : false;
-          const items = replacing
-            ? s.items.map((i) => (i.id === options!.replaceItemId ? item : i))
-            : [...s.items, item];
-          return {
-            ...s,
-            items,
-            activeItemByGroup: { ...s.activeItemByGroup, [target.groupId]: item.id },
-          };
+          name: loc.name,
+          kind: loc.kind,
+          color: loc.color,
+          position,
         });
-        // Index the file's text content for search (best-effort; failures
-        // don't block the upload).
-        void (async () => {
-          const text = await extractSearchText(file, kind);
-          if (text && text.trim()) {
-            await putSearchText(item.id, text);
-            setSearchTexts((prev) => ({ ...prev, [item.id]: text }));
-          } else if (options?.replaceItemId) {
-            // Replacing a previously-indexed file with one we can't index.
-            await deleteSearchText(item.id);
-            setSearchTexts((prev) => {
-              if (!(item.id in prev)) return prev;
-              const next = { ...prev };
-              delete next[item.id];
-              return next;
-            });
-          }
-        })();
-        return item;
-      },
-      addQuote: (text, target, source) => {
-        const item: QuoteItem = {
-          id: uid('itm'),
-          name: deriveQuoteName(text),
-          kind: 'quote',
-          text,
-          source,
-          locationId: target.locationId,
-          groupId: target.groupId,
-          createdAt: Date.now(),
-          updatedAt: Date.now(),
+      } catch (err) {
+        reportError(err);
+      }
+      return loc;
+    };
+
+    const renameLocation = (id: string, name: string) => {
+      setState((s) => ({
+        ...s,
+        locations: s.locations.map((l) => (l.id === id ? { ...l, name } : l)),
+      }));
+      api.updateLocation(id, { name }).catch(reportError);
+    };
+
+    const updateLocationAct = (
+      id: string,
+      patch: Partial<Pick<LocationT, 'name' | 'kind' | 'color'>>,
+    ) => {
+      setState((s) => ({
+        ...s,
+        locations: s.locations.map((l) => (l.id === id ? { ...l, ...patch } : l)),
+      }));
+      api.updateLocation(id, patch).catch(reportError);
+    };
+
+    const deleteLocationAct = async (id: string) => {
+      // Capture file paths before optimistic delete so we can clean storage.
+      const paths = state.items
+        .filter((i) => i.locationId === id && isFileItem(i) && i.blobKey)
+        .map((i) => (i as FileItem).blobKey);
+      setState((s) => {
+        const groupsInLoc = s.groups
+          .filter((g) => g.locationId === id)
+          .map((g) => g.id);
+        const groupSet = new Set(groupsInLoc);
+        const remaining = s.locations.filter((l) => l.id !== id);
+        const nextActiveGroup = { ...s.activeGroupByLocation };
+        delete nextActiveGroup[id];
+        const nextActiveItem = { ...s.activeItemByGroup };
+        for (const gid of groupsInLoc) delete nextActiveItem[gid];
+        return {
+          ...s,
+          locations: remaining,
+          groups: s.groups.filter((g) => g.locationId !== id),
+          items: s.items.filter((i) => !groupSet.has(i.groupId)),
+          activeLocationId:
+            s.activeLocationId === id
+              ? remaining[0]?.id ?? null
+              : s.activeLocationId,
+          activeGroupByLocation: nextActiveGroup,
+          activeItemByGroup: nextActiveItem,
         };
-        setState((s) => ({
-          ...s,
-          items: [...s.items, item],
-          activeItemByGroup: { ...s.activeItemByGroup, [target.groupId]: item.id },
-        }));
-        return item;
-      },
-      addChecklist: (target, name) => {
-        const now = Date.now();
-        const item: ChecklistItemT = {
-          id: uid('itm'),
-          name: name?.trim() || 'New checklist',
-          kind: 'checklist',
-          entries: [],
-          locationId: target.locationId,
-          groupId: target.groupId,
-          createdAt: now,
-          updatedAt: now,
-        };
-        setState((s) => ({
-          ...s,
-          items: [...s.items, item],
-          activeItemByGroup: { ...s.activeItemByGroup, [target.groupId]: item.id },
-        }));
-        return item;
-      },
-      updateChecklist: (id, patch) => {
-        setState((s) => ({
-          ...s,
-          items: s.items.map((i) =>
-            i.id === id && i.kind === 'checklist'
-              ? { ...i, ...patch, updatedAt: Date.now() }
-              : i,
-          ),
-        }));
-      },
-      addChart: (target, name) => {
-        const now = Date.now();
-        const item: ChartItemT = {
-          id: uid('itm'),
-          name: name?.trim() || 'New chart',
-          kind: 'chart',
-          chartType: 'bar',
-          data: [],
-          locationId: target.locationId,
-          groupId: target.groupId,
-          createdAt: now,
-          updatedAt: now,
-        };
-        setState((s) => ({
-          ...s,
-          items: [...s.items, item],
-          activeItemByGroup: { ...s.activeItemByGroup, [target.groupId]: item.id },
-        }));
-        return item;
-      },
-      updateChart: (id, patch) => {
-        setState((s) => ({
-          ...s,
-          items: s.items.map((i) =>
-            i.id === id && i.kind === 'chart'
-              ? { ...i, ...patch, updatedAt: Date.now() }
-              : i,
-          ),
-        }));
-      },
-      renameItem: (id, name) => {
-        setState((s) => ({
-          ...s,
-          items: s.items.map((i) =>
-            i.id === id ? { ...i, name, updatedAt: Date.now() } : i,
-          ),
-        }));
-      },
-      deleteItem: (id) => {
-        setState((s) => {
-          const target = s.items.find((i) => i.id === id);
-          if (target && isFileItem(target)) {
-            void deleteBlob(target.blobKey);
-            void deleteSearchText(target.id);
+      });
+      try {
+        await api.deleteLocation(id);
+        await Promise.all(paths.map((p) => api.removeBlob(p).catch(() => {})));
+      } catch (err) {
+        reportError(err);
+      }
+    };
+
+    const reorderLocationsAct = (orderedIds: string[]) => {
+      setState((s) => {
+        const byId = new Map(s.locations.map((l) => [l.id, l]));
+        const reordered: LocationT[] = [];
+        for (const id of orderedIds) {
+          const l = byId.get(id);
+          if (l) {
+            reordered.push(l);
+            byId.delete(id);
           }
-          const next = { ...s.activeItemByGroup };
-          for (const k of Object.keys(next)) {
-            if (next[k] === id) delete next[k];
-          }
-          return {
-            ...s,
-            items: s.items.filter((i) => i.id !== id),
-            activeItemByGroup: next,
-          };
-        });
-      },
-      setActiveGroup: (locationId, groupId) =>
-        setState((s) => ({
+        }
+        for (const l of byId.values()) reordered.push(l);
+        return { ...s, locations: reordered };
+      });
+      api.reorderLocations(userId, orderedIds).catch(reportError);
+    };
+
+    const addGroup = async (locationId: string, name: string) => {
+      const id = crypto.randomUUID();
+      const createdAt = Date.now();
+      const g: GroupT = { id, locationId, name, createdAt };
+      setState((s) => ({ ...s, groups: [...s.groups, g] }));
+      try {
+        const position = state.groups.filter((x) => x.locationId === locationId)
+          .length;
+        await api.insertGroup(userId, { id, locationId, name, position });
+      } catch (err) {
+        reportError(err);
+      }
+      return g;
+    };
+
+    const renameGroup = (id: string, name: string) => {
+      setState((s) => ({
+        ...s,
+        groups: s.groups.map((g) => (g.id === id ? { ...g, name } : g)),
+      }));
+      api.updateGroup(id, { name }).catch(reportError);
+    };
+
+    const deleteGroupAct = async (id: string) => {
+      const paths = state.items
+        .filter((i) => i.groupId === id && isFileItem(i) && i.blobKey)
+        .map((i) => (i as FileItem).blobKey);
+      setState((s) => {
+        const nextActiveItem = { ...s.activeItemByGroup };
+        delete nextActiveItem[id];
+        const nextActiveGroup = { ...s.activeGroupByLocation };
+        for (const k of Object.keys(nextActiveGroup)) {
+          if (nextActiveGroup[k] === id) delete nextActiveGroup[k];
+        }
+        return {
           ...s,
-          activeGroupByLocation: {
-            ...s.activeGroupByLocation,
-            [locationId]: groupId,
+          groups: s.groups.filter((g) => g.id !== id),
+          items: s.items.filter((i) => i.groupId !== id),
+          activeItemByGroup: nextActiveItem,
+          activeGroupByLocation: nextActiveGroup,
+        };
+      });
+      try {
+        await api.deleteGroup(id);
+        await Promise.all(paths.map((p) => api.removeBlob(p).catch(() => {})));
+      } catch (err) {
+        reportError(err);
+      }
+    };
+
+    const reorderGroupsAct = (locationId: string, orderedIds: string[]) => {
+      setState((s) => {
+        const inLocation = s.groups.filter((g) => g.locationId === locationId);
+        const byId = new Map(inLocation.map((g) => [g.id, g]));
+        const reorderedInLoc: GroupT[] = [];
+        for (const id of orderedIds) {
+          const g = byId.get(id);
+          if (g) {
+            reorderedInLoc.push(g);
+            byId.delete(id);
+          }
+        }
+        for (const g of byId.values()) reorderedInLoc.push(g);
+        const result: GroupT[] = [];
+        let i = 0;
+        for (const g of s.groups) {
+          if (g.locationId === locationId) {
+            const next = reorderedInLoc[i++];
+            if (next) result.push(next);
+          } else {
+            result.push(g);
+          }
+        }
+        return { ...s, groups: result };
+      });
+      api.reorderGroups(userId, locationId, orderedIds).catch(reportError);
+    };
+
+    const setActiveGroup = (locationId: string, groupId: string) =>
+      setState((s) => ({
+        ...s,
+        activeGroupByLocation: {
+          ...s.activeGroupByLocation,
+          [locationId]: groupId,
+        },
+      }));
+
+    const addFile: StoreActions['addFile'] = async (
+      file,
+      target,
+      options,
+    ) => {
+      const id = options?.replaceItemId ?? crypto.randomUUID();
+      const finalName = options?.renameTo ?? file.name;
+      const kind = inferFileKind(file);
+      const storagePath = api.makeStoragePath(userId, id, finalName);
+
+      // Upload first; if it fails, the row should not exist.
+      await api.uploadBlob(storagePath, file, file.type);
+
+      const now = Date.now();
+      const item: FileItem = {
+        id,
+        name: finalName,
+        kind,
+        mime: file.type,
+        size: file.size,
+        blobKey: storagePath,
+        locationId: target.locationId,
+        groupId: target.groupId,
+        createdAt: now,
+        updatedAt: now,
+      };
+
+      // Try extracting text for search; non-fatal.
+      let searchText: string | undefined;
+      try {
+        const t = await extractSearchText(file, kind);
+        if (t && t.trim()) searchText = t;
+      } catch {
+        // ignore
+      }
+
+      // If replacing, drop the old row's blob (its old path may differ).
+      if (options?.replaceItemId) {
+        const prev = state.items.find((i) => i.id === options.replaceItemId);
+        if (prev && isFileItem(prev) && prev.blobKey && prev.blobKey !== storagePath) {
+          api.removeBlob(prev.blobKey).catch(() => {});
+        }
+      }
+
+      await api.upsertItem(userId, {
+        id,
+        locationId: target.locationId,
+        groupId: target.groupId,
+        kind,
+        name: finalName,
+        mime: file.type,
+        size: file.size,
+        storagePath,
+        searchText,
+      });
+
+      setState((s) => {
+        const exists = s.items.some((i) => i.id === id);
+        return {
+          ...s,
+          items: exists
+            ? s.items.map((i) => (i.id === id ? item : i))
+            : [...s.items, item],
+          activeItemByGroup: {
+            ...s.activeItemByGroup,
+            [target.groupId]: id,
           },
-        })),
-      setActiveItem: (groupId, itemId) =>
-        setState((s) => ({
+        };
+      });
+      return item;
+    };
+
+    const addQuote: StoreActions['addQuote'] = async (text, target, source) => {
+      const id = crypto.randomUUID();
+      const now = Date.now();
+      const item: QuoteItem = {
+        id,
+        name: deriveQuoteName(text),
+        kind: 'quote',
+        text,
+        source,
+        locationId: target.locationId,
+        groupId: target.groupId,
+        createdAt: now,
+        updatedAt: now,
+      };
+      setState((s) => ({
+        ...s,
+        items: [...s.items, item],
+        activeItemByGroup: { ...s.activeItemByGroup, [target.groupId]: id },
+      }));
+      try {
+        await api.upsertItem(userId, {
+          id,
+          locationId: target.locationId,
+          groupId: target.groupId,
+          kind: 'quote',
+          name: item.name,
+          quoteText: text,
+          quoteSource: source,
+        });
+      } catch (err) {
+        reportError(err);
+      }
+      return item;
+    };
+
+    const addChecklist: StoreActions['addChecklist'] = async (target, name) => {
+      const id = crypto.randomUUID();
+      const now = Date.now();
+      const item: ChecklistItemT = {
+        id,
+        name: name?.trim() || 'New checklist',
+        kind: 'checklist',
+        entries: [],
+        locationId: target.locationId,
+        groupId: target.groupId,
+        createdAt: now,
+        updatedAt: now,
+      };
+      setState((s) => ({
+        ...s,
+        items: [...s.items, item],
+        activeItemByGroup: { ...s.activeItemByGroup, [target.groupId]: id },
+      }));
+      try {
+        await api.upsertItem(userId, {
+          id,
+          locationId: target.locationId,
+          groupId: target.groupId,
+          kind: 'checklist',
+          name: item.name,
+          checklistEntries: [],
+        });
+      } catch (err) {
+        reportError(err);
+      }
+      return item;
+    };
+
+    const updateChecklist: StoreActions['updateChecklist'] = (id, patch) => {
+      setState((s) => ({
+        ...s,
+        items: s.items.map((i) =>
+          i.id === id && i.kind === 'checklist'
+            ? { ...i, ...patch, updatedAt: Date.now() }
+            : i,
+        ),
+      }));
+      api
+        .patchItem(id, {
+          name: patch.name,
+          checklistEntries: patch.entries,
+        })
+        .catch(reportError);
+    };
+
+    const addChart: StoreActions['addChart'] = async (target, name) => {
+      const id = crypto.randomUUID();
+      const now = Date.now();
+      const item: ChartItemT = {
+        id,
+        name: name?.trim() || 'New chart',
+        kind: 'chart',
+        chartType: 'bar',
+        data: [],
+        locationId: target.locationId,
+        groupId: target.groupId,
+        createdAt: now,
+        updatedAt: now,
+      };
+      setState((s) => ({
+        ...s,
+        items: [...s.items, item],
+        activeItemByGroup: { ...s.activeItemByGroup, [target.groupId]: id },
+      }));
+      try {
+        await api.upsertItem(userId, {
+          id,
+          locationId: target.locationId,
+          groupId: target.groupId,
+          kind: 'chart',
+          name: item.name,
+          chartType: 'bar',
+          chartData: [],
+        });
+      } catch (err) {
+        reportError(err);
+      }
+      return item;
+    };
+
+    const updateChart: StoreActions['updateChart'] = (id, patch) => {
+      setState((s) => ({
+        ...s,
+        items: s.items.map((i) =>
+          i.id === id && i.kind === 'chart'
+            ? { ...i, ...patch, updatedAt: Date.now() }
+            : i,
+        ),
+      }));
+      api
+        .patchItem(id, {
+          name: patch.name,
+          chartType: patch.chartType,
+          chartData: patch.data,
+          chartXLabel: patch.xLabel,
+          chartYLabel: patch.yLabel,
+        })
+        .catch(reportError);
+    };
+
+    const renameItem: StoreActions['renameItem'] = (id, name) => {
+      setState((s) => ({
+        ...s,
+        items: s.items.map((i) =>
+          i.id === id ? { ...i, name, updatedAt: Date.now() } : i,
+        ),
+      }));
+      api.patchItem(id, { name }).catch(reportError);
+    };
+
+    const deleteItemAct: StoreActions['deleteItem'] = async (id) => {
+      const target = state.items.find((i) => i.id === id);
+      setState((s) => {
+        const next = { ...s.activeItemByGroup };
+        for (const k of Object.keys(next)) {
+          if (next[k] === id) delete next[k];
+        }
+        return {
           ...s,
-          activeItemByGroup: { ...s.activeItemByGroup, [groupId]: itemId },
-        })),
+          items: s.items.filter((i) => i.id !== id),
+          activeItemByGroup: next,
+        };
+      });
+      try {
+        await api.deleteItem(id);
+        if (target && isFileItem(target) && target.blobKey) {
+          await api.removeBlob(target.blobKey).catch(() => {});
+        }
+      } catch (err) {
+        reportError(err);
+      }
+    };
+
+    const setActiveItem = (groupId: string, itemId: string) =>
+      setState((s) => ({
+        ...s,
+        activeItemByGroup: { ...s.activeItemByGroup, [groupId]: itemId },
+      }));
+
+    return {
+      setActiveLocation,
+      addLocation,
+      renameLocation,
+      updateLocation: updateLocationAct,
+      deleteLocation: deleteLocationAct,
+      reorderLocations: reorderLocationsAct,
+      addGroup,
+      renameGroup,
+      deleteGroup: deleteGroupAct,
+      reorderGroups: reorderGroupsAct,
+      setActiveGroup,
+      addFile,
+      addQuote,
+      addChecklist,
+      updateChecklist,
+      addChart,
+      updateChart,
+      renameItem,
+      deleteItem: deleteItemAct,
+      setActiveItem,
       itemsInGroup: (groupId) =>
         state.items
           .filter((i) => i.groupId === groupId)
           .sort((a, b) => a.createdAt - b.createdAt),
       groupsInLocation: (locationId) =>
         state.groups.filter((g) => g.locationId === locationId),
-      searchTexts,
+      searchTexts: {},
+      refresh,
+      ready,
     };
-  }, [state, searchTexts]);
+  }, [state, userId, reportError, refresh, ready]);
 
+  // Build searchTexts from items with search_text fields. We don't have it
+  // here directly because items don't carry searchText on the client type,
+  // but extractSearchText runs on upload and the value is round-tripped via
+  // patchItem. We don't surface it to the search UI separately on the cloud
+  // path; SearchBar still matches name/quote/checklist/chart fields.
   const value = useMemo<Store>(() => ({ ...state, ...actions }), [state, actions]);
 
   return <StoreCtx.Provider value={value}>{children}</StoreCtx.Provider>;
 }
 
-function inferKindFromFile(file: File) {
-  // Lazy mirror of classifyFile to avoid circular import; same logic.
+function emptyState(): StoreState {
+  return {
+    locations: [],
+    groups: [],
+    items: [],
+    activeLocationId: null,
+    activeGroupByLocation: {},
+    activeItemByGroup: {},
+  };
+}
+
+async function seedStarter(userId: string): Promise<LocationT[]> {
+  const seeded: LocationT[] = [];
+  for (let i = 0; i < STARTER_LOCATIONS.length; i++) {
+    const tpl = STARTER_LOCATIONS[i];
+    const id = crypto.randomUUID();
+    await api.insertLocation(userId, {
+      id,
+      name: tpl.name,
+      kind: tpl.kind,
+      color: tpl.color,
+      position: i,
+    });
+    seeded.push({
+      id,
+      name: tpl.name,
+      kind: tpl.kind,
+      color: tpl.color,
+      createdAt: Date.now() + i,
+    });
+  }
+  return seeded;
+}
+
+function inferFileKind(file: File) {
   const name = file.name.toLowerCase();
   const m = file.type;
   if (m.startsWith('image/')) return 'image' as const;

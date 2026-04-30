@@ -8,6 +8,10 @@ services:
     envVars:
       - key: NODE_VERSION
         value: "20"
+      - key: VITE_SUPABASE_URL
+        value: https://nvypvpdgombzwcmjcnxk.supabase.co
+      - key: VITE_SUPABASE_PUBLISHABLE_KEY
+        value: sb_publishable_Z7MMwOGGRA1Zncru9ZIy1g_hK1jfMzk
     headers:
       - path: /assets/*
         name: Cache-Control

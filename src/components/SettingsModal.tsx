@@ -163,7 +163,7 @@ function EmailSection() {
     setEmail(user?.email ?? '');
   }, [user?.email]);
 
-  const dirty = email.trim().toLowerCase() !== (user?.emailLower ?? '');
+  const dirty = email.trim().toLowerCase() !== (user?.email?.toLowerCase() ?? '');
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -217,7 +217,6 @@ function EmailSection() {
 
 function PasswordSection() {
   const { changePassword } = useAuth();
-  const [current, setCurrent] = useState('');
   const [next, setNext] = useState('');
   const [confirm, setConfirm] = useState('');
   const [busy, setBusy] = useState(false);
@@ -239,8 +238,7 @@ function PasswordSection() {
     }
     setBusy(true);
     try {
-      await changePassword(current, next);
-      setCurrent('');
+      await changePassword(next);
       setNext('');
       setConfirm('');
       setStatus({ kind: 'ok', message: 'Password updated.' });
@@ -257,20 +255,9 @@ function PasswordSection() {
   return (
     <SectionShell
       title="Password"
-      description="Confirm your current password to set a new one."
+      description="Set a new password. You'll stay signed in on this device."
     >
       <form onSubmit={submit} className="space-y-3">
-        <div>
-          <div className="label">Current password</div>
-          <input
-            type="password"
-            className="input"
-            value={current}
-            onChange={(e) => setCurrent(e.target.value)}
-            autoComplete="current-password"
-            required
-          />
-        </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
             <div className="label">New password</div>
@@ -302,7 +289,7 @@ function PasswordSection() {
           <button
             type="submit"
             className="btn-primary"
-            disabled={busy || !current || !next || !confirm}
+            disabled={busy || !next || !confirm}
           >
             <Icon name="check" width={14} height={14} />
             {busy ? 'Saving…' : 'Update password'}
