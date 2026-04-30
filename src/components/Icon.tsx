@@ -30,7 +30,9 @@ export type IconName =
   | 'chart'
   | 'chart-bar'
   | 'chart-line'
-  | 'chart-pie';
+  | 'chart-pie'
+  | 'eye'
+  | 'eye-off';
 
 export function Icon({ name, ...props }: IconProps) {
   const common = {
@@ -209,6 +211,21 @@ export function Icon({ name, ...props }: IconProps) {
       return (
         <svg {...common} {...props}>
           <path d="M21 12a9 9 0 1 1-9-9v9h9z" />
+        </svg>
+      );
+    case 'eye':
+      return (
+        <svg {...common} {...props}>
+          <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" />
+          <circle cx="12" cy="12" r="3" />
+        </svg>
+      );
+    case 'eye-off':
+      return (
+        <svg {...common} {...props}>
+          <path d="M3 3l18 18" />
+          <path d="M10.6 6.1A10 10 0 0 1 12 6c6.5 0 10 6 10 6a17.3 17.3 0 0 1-3.3 4.1M6.6 6.6A17.5 17.5 0 0 0 2 12s3.5 6 10 6a10 10 0 0 0 4-.8" />
+          <path d="M9.9 9.9a3 3 0 0 0 4.2 4.2" />
         </svg>
       );
     case 'logo':

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '../state/auth';
 import { Icon } from './Icon';
+import { PasswordInput } from './PasswordInput';
 
 type Mode = 'signin' | 'signup';
 
@@ -150,9 +151,8 @@ export function AuthScreen() {
             </div>
             <div>
               <div className="label">Password</div>
-              <input
+              <PasswordInput
                 className="input"
-                type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 autoComplete={
@@ -166,9 +166,8 @@ export function AuthScreen() {
             {mode === 'signup' && (
               <div>
                 <div className="label">Confirm password</div>
-                <input
+                <PasswordInput
                   className="input"
-                  type="password"
                   value={confirm}
                   onChange={(e) => setConfirm(e.target.value)}
                   autoComplete="new-password"

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Modal } from './Modal';
 import { Icon } from './Icon';
+import { PasswordInput } from './PasswordInput';
 import { useAuth } from '../state/auth';
 
 interface SettingsModalProps {
@@ -261,8 +262,7 @@ function PasswordSection() {
         <div className="grid grid-cols-2 gap-3">
           <div>
             <div className="label">New password</div>
-            <input
-              type="password"
+            <PasswordInput
               className="input"
               value={next}
               onChange={(e) => setNext(e.target.value)}
@@ -273,8 +273,7 @@ function PasswordSection() {
           </div>
           <div>
             <div className="label">Confirm new password</div>
-            <input
-              type="password"
+            <PasswordInput
               className="input"
               value={confirm}
               onChange={(e) => setConfirm(e.target.value)}
