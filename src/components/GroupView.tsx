@@ -74,25 +74,42 @@ export function GroupView({ group }: GroupViewProps) {
           {items.map((it) => {
             const isActive = active?.id === it.id;
             return (
-              <button
+              <div
                 key={it.id}
-                onClick={() => store.setActiveItem(group.id, it.id)}
-                className={`group/tab flex shrink-0 items-center gap-2 rounded-lg border px-2.5 py-1.5 text-sm transition ${
+                className={`group/tab flex shrink-0 items-center gap-1 rounded-lg border pl-2.5 pr-1 py-1 text-sm transition ${
                   isActive
                     ? 'border-accent-500/60 bg-accent-500/15 text-white shadow-soft'
                     : 'border-white/10 bg-white/[0.02] text-ink-200 hover:bg-white/[0.06]'
                 }`}
                 title={it.name}
               >
-                <span
-                  className={`flex h-5 w-5 items-center justify-center rounded-md ${
-                    isActive ? 'text-white' : 'text-ink-300'
-                  }`}
+                <button
+                  onClick={() => store.setActiveItem(group.id, it.id)}
+                  className="flex items-center gap-2 py-0.5"
                 >
-                  <Icon name={ICON_FOR_KIND[it.kind]} width={13} height={13} />
-                </span>
-                <span className="max-w-[180px] truncate font-medium">{it.name}</span>
-              </button>
+                  <span
+                    className={`flex h-5 w-5 items-center justify-center rounded-md ${
+                      isActive ? 'text-white' : 'text-ink-300'
+                    }`}
+                  >
+                    <Icon name={ICON_FOR_KIND[it.kind]} width={13} height={13} />
+                  </span>
+                  <span className="max-w-[180px] truncate font-medium">{it.name}</span>
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (confirm(`Remove “${it.name}” from ${group.name}?`)) {
+                      store.deleteItem(it.id);
+                    }
+                  }}
+                  className="rounded-md p-1 text-ink-400 opacity-0 transition hover:bg-red-500/15 hover:text-red-300 group-hover/tab:opacity-100"
+                  title="Remove"
+                  aria-label={`Remove ${it.name}`}
+                >
+                  <Icon name="x" width={12} height={12} />
+                </button>
+              </div>
             );
           })}
         </div>
@@ -132,11 +149,28 @@ export function GroupView({ group }: GroupViewProps) {
 
       <div className="min-h-0 flex-1">{active && <FileViewer item={active} />}</div>
 
-      {active && active.kind !== 'quote' && (
-        <div className="border-t border-white/5 bg-black/20 px-4 py-2 text-xs text-ink-400">
-          <span className="text-ink-200">{active.name}</span>
-          <span className="mx-2">·</span>
-          {active.mime || active.kind} · {humanSize(active.size)}
+      {active && (
+        <div className="flex items-center justify-between gap-3 border-t border-white/5 bg-black/20 px-4 py-2 text-xs text-ink-400">
+          <div className="min-w-0 truncate">
+            <span className="text-ink-200">{active.name}</span>
+            <span className="mx-2">·</span>
+            {active.kind === 'quote'
+              ? `quote · ${active.text.length} chars`
+              : `${active.mime || active.kind} · ${humanSize(active.size)}`}
+          </div>
+          <button
+            className="flex items-center gap-1.5 rounded-md px-2 py-1 text-ink-300 transition hover:bg-red-500/15 hover:text-red-300"
+            onClick={() => {
+              const label = active.kind === 'quote' ? 'this quote' : `“${active.name}”`;
+              if (confirm(`Remove ${label}? This can’t be undone.`)) {
+                store.deleteItem(active.id);
+              }
+            }}
+            title="Remove this item"
+          >
+            <Icon name="trash" width={13} height={13} />
+            Remove
+          </button>
         </div>
       )}
     </div>

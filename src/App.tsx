@@ -8,10 +8,32 @@ import { DuplicateModal } from './components/DuplicateModal';
 import { Icon } from './components/Icon';
 import { nextUniqueName } from './lib/files';
 import type { Item } from './lib/types';
+import { AuthProvider, useAuth } from './state/auth';
+import { AuthScreen } from './components/AuthScreen';
 
 export default function App() {
   return (
-    <StoreProvider>
+    <AuthProvider>
+      <AuthGate />
+    </AuthProvider>
+  );
+}
+
+function AuthGate() {
+  const { user, hydrated } = useAuth();
+  if (!hydrated) {
+    return (
+      <div className="grid-bg flex h-full items-center justify-center text-sm text-ink-400">
+        <div className="flex items-center gap-2">
+          <span className="h-2 w-2 animate-pulse rounded-full bg-accent-400" />
+          Loading…
+        </div>
+      </div>
+    );
+  }
+  if (!user) return <AuthScreen />;
+  return (
+    <StoreProvider key={user.id} userId={user.id}>
       <Shell />
     </StoreProvider>
   );

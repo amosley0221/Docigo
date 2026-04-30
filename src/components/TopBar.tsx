@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Icon, type IconName } from './Icon';
 import { useStore } from '../state/store';
 import type { LocationKind } from '../lib/types';
+import { useAuth } from '../state/auth';
 
 const KIND_ICON: Record<LocationKind, IconName> = {
   work: 'briefcase',
@@ -18,8 +19,11 @@ interface TopBarProps {
 
 export function TopBar({ sidebarCollapsed, onOpenSidebar }: TopBarProps) {
   const store = useStore();
+  const { user, signOut } = useAuth();
   const [open, setOpen] = useState(false);
+  const [userOpen, setUserOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const userRef = useRef<HTMLDivElement>(null);
   const active = store.locations.find((l) => l.id === store.activeLocationId);
 
   useEffect(() => {
@@ -30,6 +34,16 @@ export function TopBar({ sidebarCollapsed, onOpenSidebar }: TopBarProps) {
     window.addEventListener('mousedown', onClick);
     return () => window.removeEventListener('mousedown', onClick);
   }, [open]);
+
+  useEffect(() => {
+    if (!userOpen) return;
+    const onClick = (e: MouseEvent) => {
+      if (userRef.current && !userRef.current.contains(e.target as Node))
+        setUserOpen(false);
+    };
+    window.addEventListener('mousedown', onClick);
+    return () => window.removeEventListener('mousedown', onClick);
+  }, [userOpen]);
 
   return (
     <header className="flex items-center gap-2 border-b border-white/5 bg-black/30 px-4 py-2.5">
@@ -130,11 +144,50 @@ export function TopBar({ sidebarCollapsed, onOpenSidebar }: TopBarProps) {
         )}
       </div>
 
-      <div className="ml-auto flex items-center gap-2 text-xs text-ink-400">
+      <div className="ml-auto flex items-center gap-3 text-xs text-ink-400">
         <span className="hidden items-center gap-1.5 md:inline-flex">
           <Icon name="sparkle" width={12} height={12} />
           Drag &amp; drop or paste anywhere
         </span>
+
+        <div className="relative" ref={userRef}>
+          <button
+            className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-2 py-1 text-sm font-medium text-white transition hover:bg-white/[0.08]"
+            onClick={() => setUserOpen((v) => !v)}
+            title={user?.username}
+          >
+            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-br from-accent-500 to-fuchsia-500 text-[11px] font-bold text-white">
+              {(user?.username ?? '?').slice(0, 1).toUpperCase()}
+            </span>
+            <span className="max-w-[120px] truncate">{user?.username}</span>
+            <Icon name="chevron-down" width={13} height={13} className="text-ink-300" />
+          </button>
+          {userOpen && (
+            <div className="glass-strong absolute right-0 top-[calc(100%+6px)] z-40 w-60 overflow-hidden rounded-xl shadow-soft">
+              <div className="border-b border-white/5 px-3 py-3">
+                <div className="text-[11px] font-semibold uppercase tracking-wider text-ink-400">
+                  Signed in
+                </div>
+                <div className="mt-0.5 truncate font-medium text-white">
+                  {user?.username}
+                </div>
+                <div className="text-xs text-ink-400">Local-only account</div>
+              </div>
+              <div className="p-1">
+                <button
+                  className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm text-ink-200 hover:bg-white/5 hover:text-white"
+                  onClick={() => {
+                    setUserOpen(false);
+                    signOut();
+                  }}
+                >
+                  <Icon name="x" width={14} height={14} />
+                  Sign out
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </header>
   );

@@ -47,7 +47,7 @@ type Store = StoreState & StoreActions;
 
 const StoreCtx = createContext<Store | null>(null);
 
-const STATE_KEY = 'docigo-state-v1';
+const stateKeyFor = (userId: string) => `docigo-state-v1::${userId}`;
 
 const sampleColors = ['#4361ff', '#aa3bff', '#ff5e7a', '#22b8a6', '#f59e0b', '#10b981'];
 
@@ -88,14 +88,22 @@ function defaultState(): StoreState {
   };
 }
 
-export function StoreProvider({ children }: { children: ReactNode }) {
+interface StoreProviderProps {
+  children: ReactNode;
+  userId: string;
+}
+
+export function StoreProvider({ children, userId }: StoreProviderProps) {
   const [state, setState] = useState<StoreState>(defaultState);
   const [hydrated, setHydrated] = useState(false);
   const persistRef = useRef<number | null>(null);
+  const stateKey = stateKeyFor(userId);
 
   useEffect(() => {
     let cancelled = false;
-    loadState<StoreState>(STATE_KEY).then((saved) => {
+    setHydrated(false);
+    setState(defaultState());
+    loadState<StoreState>(stateKey).then((saved) => {
       if (cancelled) return;
       if (saved && saved.locations?.length) setState(saved);
       setHydrated(true);
@@ -103,7 +111,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [stateKey]);
 
   useEffect(() => {
     if (!hydrated) return;
@@ -116,9 +124,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           it.kind === 'quote' ? it : { ...it, cache: undefined },
         ),
       };
-      saveState(STATE_KEY, safe);
+      saveState(stateKey, safe);
     }, 200);
-  }, [state, hydrated]);
+  }, [state, hydrated, stateKey]);
 
   const actions = useMemo<StoreActions>(() => {
     return {

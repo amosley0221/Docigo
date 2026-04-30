@@ -131,34 +131,63 @@ export function Sidebar({ collapsed, onToggle, onCollapse }: SidebarProps) {
           <div className="flex flex-col gap-0.5">
             {store.locations.map((loc) => {
               const isActive = loc.id === store.activeLocationId;
+              const itemCount = store.items.filter((i) => i.locationId === loc.id).length;
+              const groupCount = store.groupsInLocation(loc.id).length;
               return (
-                <button
+                <div
                   key={loc.id}
-                  onClick={() => {
-                    store.setActiveLocation(loc.id);
-                    onCollapse();
-                  }}
-                  className={`group flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm transition ${
+                  className={`group flex items-center gap-1 rounded-lg pr-1 transition ${
                     isActive
                       ? 'bg-white/10 text-white shadow-soft'
                       : 'text-ink-200 hover:bg-white/5 hover:text-white'
                   }`}
                 >
-                  <span
-                    className="flex h-7 w-7 items-center justify-center rounded-md"
-                    style={{
-                      background: `${loc.color}1f`,
-                      color: loc.color,
-                      boxShadow: isActive ? `inset 0 0 0 1px ${loc.color}66` : undefined,
+                  <button
+                    onClick={() => {
+                      store.setActiveLocation(loc.id);
+                      onCollapse();
                     }}
+                    className="flex flex-1 items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm"
                   >
-                    <Icon name={KIND_ICON[loc.kind]} width={15} height={15} />
-                  </span>
-                  <span className="flex-1 truncate font-medium">{loc.name}</span>
-                  <span className="text-[10px] uppercase tracking-wider text-ink-400">
-                    {KIND_LABEL[loc.kind]}
-                  </span>
-                </button>
+                    <span
+                      className="flex h-7 w-7 items-center justify-center rounded-md"
+                      style={{
+                        background: `${loc.color}1f`,
+                        color: loc.color,
+                        boxShadow: isActive ? `inset 0 0 0 1px ${loc.color}66` : undefined,
+                      }}
+                    >
+                      <Icon name={KIND_ICON[loc.kind]} width={15} height={15} />
+                    </span>
+                    <span className="flex-1 truncate font-medium">{loc.name}</span>
+                    <span className="text-[10px] uppercase tracking-wider text-ink-400">
+                      {KIND_LABEL[loc.kind]}
+                    </span>
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const detail =
+                        groupCount === 0 && itemCount === 0
+                          ? ''
+                          : ` This will also remove ${groupCount} group${
+                              groupCount === 1 ? '' : 's'
+                            } and ${itemCount} item${itemCount === 1 ? '' : 's'}.`;
+                      if (
+                        confirm(
+                          `Delete location “${loc.name}”?${detail} This can’t be undone.`,
+                        )
+                      ) {
+                        store.deleteLocation(loc.id);
+                      }
+                    }}
+                    className="rounded-md p-1 text-ink-400 opacity-0 transition hover:bg-red-500/15 hover:text-red-300 group-hover:opacity-100"
+                    title="Delete location"
+                    aria-label={`Delete ${loc.name}`}
+                  >
+                    <Icon name="trash" width={13} height={13} />
+                  </button>
+                </div>
               );
             })}
           </div>

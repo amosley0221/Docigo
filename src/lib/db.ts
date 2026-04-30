@@ -1,7 +1,7 @@
 import { openDB, type IDBPDatabase } from 'idb';
 
 const DB_NAME = 'docigo';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 let dbPromise: Promise<IDBPDatabase> | null = null;
 
@@ -15,10 +15,28 @@ export function db() {
         if (!database.objectStoreNames.contains('state')) {
           database.createObjectStore('state');
         }
+        if (!database.objectStoreNames.contains('users')) {
+          database.createObjectStore('users', { keyPath: 'id' });
+        }
       },
     });
   }
   return dbPromise;
+}
+
+export async function listUsers<T = unknown>(): Promise<T[]> {
+  const d = await db();
+  return d.getAll('users') as Promise<T[]>;
+}
+
+export async function getUser<T = unknown>(id: string): Promise<T | undefined> {
+  const d = await db();
+  return d.get('users', id) as Promise<T | undefined>;
+}
+
+export async function putUser<T extends { id: string }>(user: T) {
+  const d = await db();
+  await d.put('users', user);
 }
 
 export async function putBlob(key: string, blob: Blob) {
