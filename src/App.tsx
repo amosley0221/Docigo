@@ -1,0 +1,239 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Sidebar } from './components/Sidebar';
+import { TopBar } from './components/TopBar';
+import { Workspace } from './components/Workspace';
+import { StoreProvider, useStore } from './state/store';
+import { AssignModal, inferPendingFromFile, type Pending } from './components/AssignModal';
+import { DuplicateModal } from './components/DuplicateModal';
+import { Icon } from './components/Icon';
+import { nextUniqueName } from './lib/files';
+import type { Item } from './lib/types';
+
+export default function App() {
+  return (
+    <StoreProvider>
+      <Shell />
+    </StoreProvider>
+  );
+}
+
+interface DuplicateState {
+  existing: Item;
+  file: File;
+  target: { locationId: string; groupId: string };
+}
+
+function Shell() {
+  const store = useStore();
+  const [collapsed, setCollapsed] = useState(false);
+  const [queue, setQueue] = useState<Pending[]>([]);
+  const [dropOverlay, setDropOverlay] = useState(false);
+  const [duplicate, setDuplicate] = useState<DuplicateState | null>(null);
+  const dragDepth = useRef(0);
+
+  const current = queue[0] ?? null;
+
+  // Listen for files dropped anywhere
+  useEffect(() => {
+    const onDragEnter = (e: DragEvent) => {
+      if (!e.dataTransfer || !hasFiles(e.dataTransfer)) return;
+      e.preventDefault();
+      dragDepth.current += 1;
+      setDropOverlay(true);
+    };
+    const onDragOver = (e: DragEvent) => {
+      if (!e.dataTransfer || !hasFiles(e.dataTransfer)) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+    };
+    const onDragLeave = (e: DragEvent) => {
+      if (!e.dataTransfer || !hasFiles(e.dataTransfer)) return;
+      e.preventDefault();
+      dragDepth.current = Math.max(0, dragDepth.current - 1);
+      if (dragDepth.current === 0) setDropOverlay(false);
+    };
+    const onDrop = (e: DragEvent) => {
+      if (!e.dataTransfer) return;
+      e.preventDefault();
+      dragDepth.current = 0;
+      setDropOverlay(false);
+      const files = Array.from(e.dataTransfer.files ?? []);
+      if (files.length) {
+        setQueue((q) => [...q, ...files.map((f) => inferPendingFromFile(f))]);
+      }
+    };
+
+    window.addEventListener('dragenter', onDragEnter);
+    window.addEventListener('dragover', onDragOver);
+    window.addEventListener('dragleave', onDragLeave);
+    window.addEventListener('drop', onDrop);
+    return () => {
+      window.removeEventListener('dragenter', onDragEnter);
+      window.removeEventListener('dragover', onDragOver);
+      window.removeEventListener('dragleave', onDragLeave);
+      window.removeEventListener('drop', onDrop);
+    };
+  }, []);
+
+  // Listen for paste -> quote
+  useEffect(() => {
+    const onPaste = (e: ClipboardEvent) => {
+      // Don't intercept pastes into editable controls.
+      const t = e.target as HTMLElement | null;
+      if (t) {
+        const tag = t.tagName;
+        if (
+          tag === 'INPUT' ||
+          tag === 'TEXTAREA' ||
+          (t as HTMLElement).isContentEditable
+        ) {
+          return;
+        }
+      }
+      if (!e.clipboardData) return;
+      const files = Array.from(e.clipboardData.files ?? []);
+      if (files.length) {
+        e.preventDefault();
+        setQueue((q) => [...q, ...files.map((f) => inferPendingFromFile(f))]);
+        return;
+      }
+      const text = e.clipboardData.getData('text/plain');
+      if (text && text.trim().length > 0) {
+        e.preventDefault();
+        const trimmed = text.trim();
+        setQueue((q) => [
+          ...q,
+          {
+            kind: 'quote',
+            text: trimmed,
+            preview:
+              trimmed.length > 280 ? `${trimmed.slice(0, 277)}…` : trimmed,
+          },
+        ]);
+      }
+    };
+    window.addEventListener('paste', onPaste);
+    return () => window.removeEventListener('paste', onPaste);
+  }, []);
+
+  const closeCurrent = useCallback(() => {
+    setQueue((q) => q.slice(1));
+  }, []);
+
+  const handleAssign = useCallback(
+    async (target: { locationId: string; groupId: string }) => {
+      if (!current) return;
+      if (current.kind === 'quote') {
+        store.addQuote(current.text, target);
+        closeCurrent();
+        return;
+      }
+      // File: check duplicate name within the chosen group
+      const existing = store.items.find(
+        (i) => i.groupId === target.groupId && i.name === current.file.name,
+      );
+      if (existing) {
+        setDuplicate({ existing, file: current.file, target });
+        return;
+      }
+      await store.addFile(current.file, target);
+      closeCurrent();
+    },
+    [current, store, closeCurrent],
+  );
+
+  const suggestedRename = useMemo(() => {
+    if (!duplicate) return '';
+    const taken = new Set(
+      store.items
+        .filter((i) => i.groupId === duplicate.target.groupId)
+        .map((i) => i.name),
+    );
+    return nextUniqueName(duplicate.file.name, taken);
+  }, [duplicate, store.items]);
+
+  return (
+    <div className="grid-bg flex h-full">
+      <Sidebar
+        collapsed={collapsed}
+        onToggle={() => setCollapsed((v) => !v)}
+        onCollapse={() => setCollapsed(true)}
+      />
+      <div className="flex min-w-0 flex-1 flex-col">
+        <TopBar
+          sidebarCollapsed={collapsed}
+          onOpenSidebar={() => setCollapsed(false)}
+        />
+        <div className="min-h-0 flex-1">
+          <Workspace />
+        </div>
+      </div>
+
+      {dropOverlay && <DropOverlay />}
+
+      <AssignModal
+        open={!!current}
+        pending={current}
+        onClose={closeCurrent}
+        onAssign={handleAssign}
+      />
+
+      <DuplicateModal
+        open={!!duplicate}
+        existing={duplicate?.existing ?? null}
+        incoming={
+          duplicate
+            ? {
+                name: duplicate.file.name,
+                size: duplicate.file.size,
+                mime: duplicate.file.type,
+              }
+            : null
+        }
+        suggestedName={suggestedRename}
+        onCancel={() => setDuplicate(null)}
+        onReplace={async () => {
+          if (!duplicate) return;
+          await store.addFile(duplicate.file, duplicate.target, {
+            replaceItemId: duplicate.existing.id,
+          });
+          setDuplicate(null);
+          closeCurrent();
+        }}
+        onRename={async (newName) => {
+          if (!duplicate) return;
+          await store.addFile(duplicate.file, duplicate.target, {
+            renameTo: newName,
+          });
+          setDuplicate(null);
+          closeCurrent();
+        }}
+      />
+    </div>
+  );
+}
+
+function hasFiles(dt: DataTransfer) {
+  if (dt.types) {
+    for (let i = 0; i < dt.types.length; i++) {
+      if (dt.types[i] === 'Files') return true;
+    }
+  }
+  return false;
+}
+
+function DropOverlay() {
+  return (
+    <div className="pointer-events-none fixed inset-0 z-40 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+      <div className="glass-strong flex flex-col items-center gap-3 rounded-2xl px-10 py-8 shadow-glow">
+        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-accent-500/20 text-accent-200">
+          <Icon name="upload" width={26} height={26} />
+        </div>
+        <div className="font-display text-xl font-bold text-white">Drop to organize</div>
+        <div className="text-sm text-ink-300">
+          We’ll ask where this should live.
+        </div>
+      </div>
+    </div>
+  );
+}

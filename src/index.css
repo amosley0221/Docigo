@@ -1,0 +1,104 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  background: #0a0b12;
+  color: #eeeef1;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+::selection {
+  background: rgba(67, 97, 255, 0.35);
+  color: #fff;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+@layer components {
+  .glass {
+    background: linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.04),
+      rgba(255, 255, 255, 0.015)
+    );
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    backdrop-filter: blur(14px) saturate(140%);
+  }
+  .glass-strong {
+    background: linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.07),
+      rgba(255, 255, 255, 0.02)
+    );
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(18px) saturate(160%);
+  }
+  .grid-bg {
+    background-image:
+      radial-gradient(
+        1200px 600px at 20% -10%,
+        rgba(67, 97, 255, 0.18),
+        transparent 60%
+      ),
+      radial-gradient(
+        900px 500px at 90% 10%,
+        rgba(170, 59, 255, 0.12),
+        transparent 55%
+      ),
+      linear-gradient(180deg, #0a0b12 0%, #0a0b12 100%);
+  }
+  .btn {
+    @apply inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium transition;
+  }
+  .btn-primary {
+    @apply btn bg-accent-500 text-white hover:bg-accent-400 active:bg-accent-600;
+  }
+  .btn-ghost {
+    @apply btn text-ink-200 hover:bg-white/5 hover:text-white;
+  }
+  .btn-quiet {
+    @apply btn border border-white/10 bg-white/[0.03] text-ink-100 hover:bg-white/[0.07];
+  }
+  .input {
+    @apply w-full rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-white outline-none transition;
+  }
+  .input:focus {
+    @apply border-accent-500 ring-2 ring-accent-500/30;
+  }
+  .label {
+    @apply mb-1 block text-xs font-medium uppercase tracking-wider text-ink-400;
+  }
+  .chip {
+    @apply inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-0.5 text-xs text-ink-200;
+  }
+}
