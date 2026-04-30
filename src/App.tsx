@@ -11,6 +11,7 @@ import type { Item } from './lib/types';
 import { AuthProvider, useAuth } from './state/auth';
 import { AuthScreen } from './components/AuthScreen';
 import { MigratePrompt } from './components/MigratePrompt';
+import { useIsMobile } from './lib/useMediaQuery';
 
 export default function App() {
   return (
@@ -49,7 +50,15 @@ interface DuplicateState {
 
 function Shell() {
   const store = useStore();
-  const [collapsed, setCollapsed] = useState(false);
+  const isMobile = useIsMobile();
+  const [collapsed, setCollapsed] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    return window.matchMedia('(max-width: 767px)').matches;
+  });
+  // Auto-collapse when screen becomes mobile.
+  useEffect(() => {
+    if (isMobile) setCollapsed(true);
+  }, [isMobile]);
   const [queue, setQueue] = useState<Pending[]>([]);
   const [dropOverlay, setDropOverlay] = useState(false);
   const [duplicate, setDuplicate] = useState<DuplicateState | null>(null);

@@ -66,7 +66,7 @@ export function TopBar({ sidebarCollapsed, onOpenSidebar }: TopBarProps) {
   }, [userOpen]);
 
   return (
-    <header className="flex items-center gap-2 border-b border-white/5 bg-black/30 px-4 py-2.5">
+    <header className="flex items-center gap-2 border-b border-white/5 bg-black/30 px-2.5 py-2 md:px-4 md:py-2.5">
       {sidebarCollapsed && (
         <button
           className="rounded-md p-1.5 text-ink-200 hover:bg-white/10 hover:text-white"
@@ -77,25 +77,27 @@ export function TopBar({ sidebarCollapsed, onOpenSidebar }: TopBarProps) {
         </button>
       )}
 
-      <div className="relative" ref={ref}>
+      <div className="relative min-w-0 flex-1 md:flex-none" ref={ref}>
         <button
-          className="flex items-center gap-2.5 rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1.5 text-sm font-medium text-white transition hover:bg-white/[0.08]"
+          className="flex w-full items-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-2 py-1.5 text-sm font-medium text-white transition hover:bg-white/[0.08] md:w-auto md:gap-2.5 md:px-2.5"
           onClick={() => setOpen((v) => !v)}
         >
           {active ? (
             <>
               <span
-                className="flex h-6 w-6 items-center justify-center rounded-md"
+                className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md"
                 style={{ background: `${active.color}1f`, color: active.color }}
               >
                 <Icon name={KIND_ICON[active.kind]} width={13} height={13} />
               </span>
-              <span className="max-w-[180px] truncate">{active.name}</span>
+              <span className="min-w-0 flex-1 truncate text-left md:max-w-[180px] md:flex-none">
+                {active.name}
+              </span>
             </>
           ) : (
             <span className="text-ink-300">Pick a location</span>
           )}
-          <Icon name="chevron-down" width={14} height={14} className="text-ink-300" />
+          <Icon name="chevron-down" width={14} height={14} className="shrink-0 text-ink-300" />
         </button>
         {open && (
           <div className="glass-strong absolute left-0 top-[calc(100%+6px)] z-40 w-72 overflow-hidden rounded-xl shadow-soft">
@@ -149,7 +151,7 @@ export function TopBar({ sidebarCollapsed, onOpenSidebar }: TopBarProps) {
         )}
       </div>
 
-      <div className="ml-2 flex items-center gap-2 text-xs text-ink-400">
+      <div className="ml-2 hidden items-center gap-2 text-xs text-ink-400 lg:flex">
         {active && (
           <>
             <span className="chip">
@@ -175,13 +177,20 @@ export function TopBar({ sidebarCollapsed, onOpenSidebar }: TopBarProps) {
           >
             {user && (
               <>
-                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-br from-accent-500 to-fuchsia-500 text-[11px] font-bold text-white">
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-accent-500 to-fuchsia-500 text-[11px] font-bold text-white">
                   {initialsFor(user.firstName, user.lastName)}
                 </span>
-                <span className="max-w-[140px] truncate">{user.display}</span>
+                <span className="hidden max-w-[140px] truncate md:inline">
+                  {user.display}
+                </span>
               </>
             )}
-            <Icon name="chevron-down" width={13} height={13} className="text-ink-300" />
+            <Icon
+              name="chevron-down"
+              width={13}
+              height={13}
+              className="hidden shrink-0 text-ink-300 md:block"
+            />
           </button>
           {userOpen && (
             <div className="glass-strong absolute right-0 top-[calc(100%+6px)] z-40 w-72 overflow-hidden rounded-xl shadow-soft">

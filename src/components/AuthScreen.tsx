@@ -53,8 +53,8 @@ export function AuthScreen() {
   };
 
   return (
-    <div className="grid-bg flex h-full items-center justify-center p-6">
-      <div className="grid w-full max-w-5xl grid-cols-1 gap-8 lg:grid-cols-[1.05fr_1fr]">
+    <div className="grid-bg flex h-full items-center justify-center p-3 md:p-6">
+      <div className="grid w-full max-w-5xl grid-cols-1 gap-6 md:gap-8 lg:grid-cols-[1.05fr_1fr]">
         <div className="hidden flex-col justify-between lg:flex">
           <div>
             <div className="flex items-center gap-2">
@@ -88,7 +88,7 @@ export function AuthScreen() {
           </ul>
         </div>
 
-        <div className="glass-strong rounded-2xl p-7 shadow-soft">
+        <div className="glass-strong rounded-2xl p-5 shadow-soft md:p-7">
           <div className="lg:hidden mb-6 flex items-center gap-2">
             <Icon name="logo" />
             <div className="font-display text-xl font-bold text-white">Docigo</div>

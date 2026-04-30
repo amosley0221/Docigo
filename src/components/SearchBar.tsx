@@ -170,7 +170,7 @@ export function SearchBar() {
   };
 
   return (
-    <div className="relative w-[420px] max-w-[42vw]" ref={wrapRef}>
+    <div className="relative w-[200px] max-w-[44vw] md:w-[420px] md:max-w-[42vw]" ref={wrapRef}>
       <div className="flex items-center gap-1 rounded-lg border border-white/10 bg-white/[0.03] px-2 py-1 transition focus-within:border-accent-500/60 focus-within:bg-white/[0.06]">
         <Icon name="search" width={14} height={14} className="ml-1 text-ink-400" />
         <input
@@ -181,10 +181,12 @@ export function SearchBar() {
             setOpen(true);
           }}
           onFocus={() => setOpen(true)}
-          placeholder="Search files and quotes…"
-          className="flex-1 bg-transparent px-1 py-1 text-sm text-white placeholder:text-ink-500 outline-none"
+          placeholder="Search…"
+          className="min-w-0 flex-1 bg-transparent px-1 py-1 text-sm text-white placeholder:text-ink-500 outline-none"
         />
-        <ScopeToggle scope={scope} setScope={setScope} />
+        <div className="hidden md:block">
+          <ScopeToggle scope={scope} setScope={setScope} />
+        </div>
         {!query && (
           <kbd className="ml-1 hidden rounded border border-white/10 bg-white/[0.04] px-1.5 py-0.5 text-[10px] font-medium text-ink-400 md:inline-block">
             /
@@ -193,14 +195,17 @@ export function SearchBar() {
       </div>
 
       {open && trimmed.length > 0 && (
-        <div className="glass-strong absolute right-0 top-[calc(100%+6px)] z-40 w-[520px] max-w-[80vw] overflow-hidden rounded-xl shadow-soft">
-          <div className="flex items-center justify-between border-b border-white/5 px-3 py-2">
-            <div className="text-[11px] font-semibold uppercase tracking-wider text-ink-400">
+        <div className="glass-strong absolute right-0 top-[calc(100%+6px)] z-40 w-[calc(100vw-24px)] max-w-[520px] overflow-hidden rounded-xl shadow-soft md:w-[520px] md:max-w-[80vw]">
+          <div className="flex items-center justify-between gap-2 border-b border-white/5 px-3 py-2">
+            <div className="min-w-0 flex-1 truncate text-[11px] font-semibold uppercase tracking-wider text-ink-400">
               {scope === 'current'
                 ? `In ${store.locations.find((l) => l.id === store.activeLocationId)?.name ?? 'this location'}`
                 : 'Across all locations'}
             </div>
-            <div className="text-[11px] text-ink-400">
+            <div className="md:hidden">
+              <ScopeToggle scope={scope} setScope={setScope} />
+            </div>
+            <div className="hidden text-[11px] text-ink-400 md:block">
               {hits.length} match{hits.length === 1 ? '' : 'es'}
             </div>
           </div>

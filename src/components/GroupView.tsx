@@ -100,11 +100,11 @@ export function GroupView({ group }: GroupViewProps) {
         }
       />
 
-      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 border-b border-white/5 bg-black/20 px-4 py-2">
-        <div className="text-[11px] font-semibold uppercase tracking-wider text-ink-400">
+      <div className="flex items-center gap-2 border-b border-white/5 bg-black/20 px-3 py-2 md:grid md:grid-cols-[1fr_auto_1fr] md:gap-3 md:px-4">
+        <div className="hidden text-[11px] font-semibold uppercase tracking-wider text-ink-400 md:block">
           File
         </div>
-        <div className="relative w-[clamp(240px,32vw,460px)]" ref={ddRef}>
+        <div className="relative min-w-0 flex-1 md:w-[clamp(240px,32vw,460px)] md:flex-none" ref={ddRef}>
           <button
             className="flex w-full items-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1.5 text-left text-sm text-white transition hover:bg-white/[0.08]"
             onClick={() => setDropdown((v) => !v)}
@@ -123,7 +123,7 @@ export function GroupView({ group }: GroupViewProps) {
             <Icon name="chevron-down" width={14} height={14} className="text-ink-300" />
           </button>
           {dropdown && (
-            <div className="glass-strong absolute left-1/2 top-[calc(100%+6px)] z-30 w-full -translate-x-1/2 overflow-hidden rounded-xl shadow-soft">
+            <div className="glass-strong absolute left-0 top-[calc(100%+6px)] z-30 w-full overflow-hidden rounded-xl shadow-soft md:left-1/2 md:-translate-x-1/2">
               <div className="px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wider text-ink-400">
                 Items in {group.name}
               </div>
@@ -148,7 +148,7 @@ export function GroupView({ group }: GroupViewProps) {
             </div>
           )}
         </div>
-        <div className="flex items-center justify-end gap-2">
+        <div className="flex shrink-0 items-center justify-end gap-1.5 md:gap-2">
           <div className="relative" ref={newMenuRef}>
             <button
               className="flex items-center gap-1.5 rounded-md border border-white/10 bg-white/[0.03] px-2 py-1 text-xs text-ink-200 transition hover:bg-white/[0.07]"
@@ -156,8 +156,13 @@ export function GroupView({ group }: GroupViewProps) {
               title="Create a new item in this group"
             >
               <Icon name="plus" width={13} height={13} />
-              New
-              <Icon name="chevron-down" width={12} height={12} className="text-ink-400" />
+              <span className="hidden md:inline">New</span>
+              <Icon
+                name="chevron-down"
+                width={12}
+                height={12}
+                className="hidden text-ink-400 md:block"
+              />
             </button>
             {newMenu && (
               <div className="glass-strong absolute right-0 top-[calc(100%+6px)] z-30 w-56 overflow-hidden rounded-xl shadow-soft">
@@ -209,7 +214,7 @@ export function GroupView({ group }: GroupViewProps) {
               title="Remove this item"
             >
               <Icon name="trash" width={13} height={13} />
-              Remove
+              <span className="hidden md:inline">Remove</span>
             </button>
           )}
         </div>
@@ -218,7 +223,7 @@ export function GroupView({ group }: GroupViewProps) {
       <div className="min-h-0 flex-1 overflow-hidden">
         {active ? (
           <div className="flex h-full justify-center">
-            <div className="h-full w-[70%] min-w-0">
+            <div className="h-full w-full min-w-0 md:w-[70%]">
               <FileViewer item={active} />
             </div>
           </div>
@@ -248,16 +253,16 @@ function GroupHeader({
   subtitle: string;
 }) {
   return (
-    <div className="border-b border-white/5 bg-black/20 px-5 pb-3 pt-4">
-      <div className="flex items-center gap-2 text-xs text-ink-400">
+    <div className="border-b border-white/5 bg-black/20 px-3 pb-2 pt-3 md:px-5 md:pb-3 md:pt-4">
+      <div className="hidden items-center gap-2 text-xs text-ink-400 md:flex">
         <Icon name="folder" width={12} height={12} />
         Group
       </div>
-      <div className="mt-1 flex items-baseline gap-2">
-        <h2 className="font-display text-2xl font-bold tracking-tight text-white">
+      <div className="mt-0 flex flex-col gap-0 md:mt-1 md:flex-row md:items-baseline md:gap-2">
+        <h2 className="font-display text-lg font-bold tracking-tight text-white md:text-2xl">
           {group.name}
         </h2>
-        <span className="text-sm text-ink-400">{subtitle}</span>
+        <span className="text-xs text-ink-400 md:text-sm">{subtitle}</span>
       </div>
     </div>
   );

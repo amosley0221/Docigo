@@ -5,6 +5,7 @@ import type { LocationKind, LocationT } from '../lib/types';
 import { LocationFormModal } from './LocationFormModal';
 import { GroupFormModal } from './GroupFormModal';
 import { useReorderable } from '../lib/reorder';
+import { useIsMobile } from '../lib/useMediaQuery';
 
 const KIND_ICON: Record<LocationKind, IconName> = {
   work: 'briefcase',
@@ -30,6 +31,7 @@ interface SidebarProps {
 
 export function Sidebar({ collapsed, onToggle, onCollapse }: SidebarProps) {
   const store = useStore();
+  const isMobile = useIsMobile();
   const [openCreate, setOpenCreate] = useState(false);
   const [editing, setEditing] = useState<LocationT | null>(null);
   const [openGroup, setOpenGroup] = useState(false);
@@ -48,6 +50,9 @@ export function Sidebar({ collapsed, onToggle, onCollapse }: SidebarProps) {
   );
 
   if (collapsed) {
+    // On mobile a collapsed sidebar disappears entirely (the top-bar menu
+    // button is the entry point). On desktop it stays as a slim icon rail.
+    if (isMobile) return null;
     return (
       <aside className="flex h-full w-14 flex-col items-center gap-1 border-r border-white/5 bg-black/40 py-3">
         <button
@@ -91,7 +96,20 @@ export function Sidebar({ collapsed, onToggle, onCollapse }: SidebarProps) {
 
   return (
     <>
-      <aside className="flex h-full w-72 flex-col border-r border-white/5 bg-black/40">
+      {isMobile && (
+        <div
+          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm md:hidden"
+          onClick={onCollapse}
+          aria-hidden
+        />
+      )}
+      <aside
+        className={
+          isMobile
+            ? 'fixed inset-y-0 left-0 z-50 flex h-full w-[85%] max-w-[320px] flex-col border-r border-white/5 bg-ink-950/95 shadow-glow'
+            : 'flex h-full w-72 flex-col border-r border-white/5 bg-black/40'
+        }
+      >
         <div className="flex items-center justify-between px-4 pb-3 pt-4">
           <div className="flex items-center gap-2">
             <Icon name="logo" />

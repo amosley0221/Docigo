@@ -5,9 +5,11 @@ import { Icon } from './Icon';
 import type { GroupT } from '../lib/types';
 import { GroupFormModal } from './GroupFormModal';
 import { useReorderable, type DragOverState } from '../lib/reorder';
+import { useIsMobile } from '../lib/useMediaQuery';
 
 export function Workspace() {
   const store = useStore();
+  const isMobile = useIsMobile();
   const active = store.locations.find((l) => l.id === store.activeLocationId);
   const groups = useMemo(
     () => (active ? store.groupsInLocation(active.id) : []),
@@ -39,6 +41,83 @@ export function Workspace() {
     return (
       <div className="flex h-full items-center justify-center text-ink-400">
         Pick a location to get started.
+      </div>
+    );
+  }
+
+  const onDeleteGroup = (g: GroupT) => {
+    const count = store.itemsInGroup(g.id).length;
+    if (
+      confirm(
+        count
+          ? `Delete group “${g.name}” and remove its ${count} item${count === 1 ? '' : 's'}?`
+          : `Delete group “${g.name}”?`,
+      )
+    ) {
+      store.deleteGroup(g.id);
+    }
+  };
+
+  if (isMobile) {
+    return (
+      <div className="flex h-full flex-col">
+        <div className="flex items-center gap-2 border-b border-white/5 bg-black/20 px-3 py-2">
+          <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wider text-ink-400">
+            Groups
+          </span>
+          <div className="flex flex-1 items-center gap-1.5 overflow-x-auto pb-0.5">
+            {groups.map((g) => {
+              const isActive = g.id === currentGroupId;
+              const count = store.itemsInGroup(g.id).length;
+              return (
+                <button
+                  key={g.id}
+                  onClick={() => setActiveGroupId(g.id)}
+                  className={`flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition ${
+                    isActive
+                      ? 'border-accent-500/60 bg-accent-500/15 text-white'
+                      : 'border-white/10 bg-white/[0.02] text-ink-200'
+                  }`}
+                >
+                  <Icon name="folder" width={11} height={11} />
+                  <span className="max-w-[120px] truncate">{g.name}</span>
+                  <span className="text-[10px] text-ink-400">{count}</span>
+                </button>
+              );
+            })}
+            {groups.length === 0 && (
+              <span className="text-xs text-ink-400">No groups yet.</span>
+            )}
+          </div>
+          {currentGroup && (
+            <button
+              onClick={() => setEditingGroup(currentGroup)}
+              className="rounded-md p-1.5 text-ink-300 hover:bg-white/10 hover:text-white"
+              aria-label="Rename current group"
+              title="Rename group"
+            >
+              <Icon name="edit" width={14} height={14} />
+            </button>
+          )}
+        </div>
+        <main className="min-h-0 flex-1">
+          {currentGroup ? (
+            <GroupView group={currentGroup} />
+          ) : (
+            <EmptyLocation locName={active.name} />
+          )}
+        </main>
+        <GroupFormModal
+          open={!!editingGroup}
+          mode="edit"
+          initial={editingGroup}
+          contextLabel={active ? `Inside ${active.name}` : undefined}
+          onClose={() => setEditingGroup(null)}
+          onSubmit={(name) => {
+            if (editingGroup) store.renameGroup(editingGroup.id, name);
+            setEditingGroup(null);
+          }}
+        />
       </div>
     );
   }
@@ -75,18 +154,7 @@ export function Workspace() {
               }
               onSelect={() => setActiveGroupId(g.id)}
               onEdit={() => setEditingGroup(g)}
-              onDelete={() => {
-                const count = store.itemsInGroup(g.id).length;
-                if (
-                  confirm(
-                    count
-                      ? `Delete group “${g.name}” and remove its ${count} item${count === 1 ? '' : 's'}?`
-                      : `Delete group “${g.name}”?`,
-                  )
-                ) {
-                  store.deleteGroup(g.id);
-                }
-              }}
+              onDelete={() => onDeleteGroup(g)}
             />
           ))}
         </div>
