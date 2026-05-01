@@ -45,6 +45,7 @@ export function AssignModal({
   const [newGroupName, setNewGroupName] = useState('');
   const [creatingGroup, setCreatingGroup] = useState(false);
   const [applyToAll, setApplyToAll] = useState(true);
+  const [busy, setBusy] = useState(false);
 
   const groups = useMemo(
     () => (locationId ? store.groupsInLocation(locationId) : []),
@@ -62,6 +63,7 @@ export function AssignModal({
     setCreatingGroup(false);
     setNewGroupName('');
     setApplyToAll(true);
+    setBusy(false);
   }, [open, store]);
 
   useEffect(() => {
@@ -100,31 +102,50 @@ export function AssignModal({
       width={520}
       footer={
         <>
-          <button className="btn-ghost" onClick={onClose}>
+          <button className="btn-ghost" disabled={busy} onClick={onClose}>
             Skip
           </button>
           <button
             className="btn-primary"
-            disabled={!canSubmit}
+            disabled={!canSubmit || busy}
             onClick={async () => {
-              let gid = groupId;
-              if (creatingGroup && newGroupName.trim()) {
-                const g = await store.addGroup(locationId, newGroupName.trim());
-                gid = g.id;
+              setBusy(true);
+              try {
+                let gid = groupId;
+                if (creatingGroup && newGroupName.trim()) {
+                  const g = await store.addGroup(
+                    locationId,
+                    newGroupName.trim(),
+                  );
+                  gid = g.id;
+                }
+                if (!gid) return;
+                onAssign(
+                  { locationId, groupId: gid },
+                  { applyToAll: showBatch && applyToAll },
+                );
+              } finally {
+                // The modal will close on success, but reset just in case it
+                // stays open (e.g., a duplicate prompt fires).
+                setBusy(false);
               }
-              if (!gid) return;
-              onAssign(
-                { locationId, groupId: gid },
-                { applyToAll: showBatch && applyToAll },
-              );
             }}
           >
-            <Icon name="check" width={14} height={14} />
-            {showBatch && applyToAll
-              ? `Save all ${fileQueueLength} files`
-              : isFile
-                ? 'Save file'
-                : 'Save quote'}
+            {busy ? (
+              <>
+                <span className="h-2 w-2 animate-pulse rounded-full bg-white" />
+                Uploading…
+              </>
+            ) : (
+              <>
+                <Icon name="check" width={14} height={14} />
+                {showBatch && applyToAll
+                  ? `Save all ${fileQueueLength} files`
+                  : isFile
+                    ? 'Save file'
+                    : 'Save quote'}
+              </>
+            )}
           </button>
         </>
       }

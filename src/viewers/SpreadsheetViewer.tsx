@@ -162,8 +162,11 @@ export function SpreadsheetViewer({ item }: { item: FileItem }) {
         </div>
       </div>
 
-      <div className="flex-1 overflow-auto p-4">
-        <div className="glass overflow-hidden rounded-xl">
+      <div className="flex-1 p-2 md:p-4">
+        <div
+          className="glass h-full overflow-auto rounded-xl"
+          style={{ WebkitOverflowScrolling: 'touch' }}
+        >
           <div className="grid w-full text-sm" style={{ minWidth: `${colCount * 140}px` }}>
             <div
               className="sticky top-0 z-10 grid border-b border-white/10 bg-black/40 backdrop-blur-md"

@@ -14,12 +14,15 @@ import { MigratePrompt } from './components/MigratePrompt';
 import { useIsMobile } from './lib/useMediaQuery';
 import { UploaderProvider } from './components/UploaderContext';
 import { ConfirmProvider } from './components/ConfirmProvider';
+import { UploadStatusProvider, useUploadStatus } from './components/UploadStatus';
 
 export default function App() {
   return (
     <AuthProvider>
       <ConfirmProvider>
-        <AuthGate />
+        <UploadStatusProvider>
+          <AuthGate />
+        </UploadStatusProvider>
       </ConfirmProvider>
     </AuthProvider>
   );
@@ -55,6 +58,7 @@ interface DuplicateState {
 function Shell() {
   const store = useStore();
   const isMobile = useIsMobile();
+  const uploadStatus = useUploadStatus();
   const [collapsed, setCollapsed] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false;
     return window.matchMedia('(max-width: 767px)').matches;
@@ -182,10 +186,20 @@ function Shell() {
         setDuplicate({ existing, file: pending.file, target });
         return;
       }
-      await store.addFile(pending.file, target);
-      closeCurrent();
+      const taskId = uploadStatus.start(pending.file.name);
+      try {
+        await store.addFile(pending.file, target);
+        uploadStatus.succeed(taskId);
+      } catch (err) {
+        uploadStatus.fail(
+          taskId,
+          err instanceof Error ? err.message : 'Upload failed',
+        );
+      } finally {
+        closeCurrent();
+      }
     },
-    [store, closeCurrent],
+    [store, closeCurrent, uploadStatus],
   );
 
   const handleAssign = useCallback(
@@ -282,19 +296,39 @@ function Shell() {
         }}
         onReplace={async () => {
           if (!duplicate) return;
-          await store.addFile(duplicate.file, duplicate.target, {
-            replaceItemId: duplicate.existing.id,
-          });
-          setDuplicate(null);
-          closeCurrent();
+          const taskId = uploadStatus.start(duplicate.file.name);
+          try {
+            await store.addFile(duplicate.file, duplicate.target, {
+              replaceItemId: duplicate.existing.id,
+            });
+            uploadStatus.succeed(taskId);
+          } catch (err) {
+            uploadStatus.fail(
+              taskId,
+              err instanceof Error ? err.message : 'Upload failed',
+            );
+          } finally {
+            setDuplicate(null);
+            closeCurrent();
+          }
         }}
         onRename={async (newName) => {
           if (!duplicate) return;
-          await store.addFile(duplicate.file, duplicate.target, {
-            renameTo: newName,
-          });
-          setDuplicate(null);
-          closeCurrent();
+          const taskId = uploadStatus.start(newName);
+          try {
+            await store.addFile(duplicate.file, duplicate.target, {
+              renameTo: newName,
+            });
+            uploadStatus.succeed(taskId);
+          } catch (err) {
+            uploadStatus.fail(
+              taskId,
+              err instanceof Error ? err.message : 'Upload failed',
+            );
+          } finally {
+            setDuplicate(null);
+            closeCurrent();
+          }
         }}
       />
     </div>
