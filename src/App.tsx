@@ -88,21 +88,21 @@ function Shell() {
     [queue],
   );
 
-  // Listen for files dropped anywhere
+  // Listen for files (and plain-text drags) dropped anywhere
   useEffect(() => {
     const onDragEnter = (e: DragEvent) => {
-      if (!e.dataTransfer || !hasFiles(e.dataTransfer)) return;
+      if (!e.dataTransfer || !hasDroppable(e.dataTransfer)) return;
       e.preventDefault();
       dragDepth.current += 1;
       setDropOverlay(true);
     };
     const onDragOver = (e: DragEvent) => {
-      if (!e.dataTransfer || !hasFiles(e.dataTransfer)) return;
+      if (!e.dataTransfer || !hasDroppable(e.dataTransfer)) return;
       e.preventDefault();
       e.dataTransfer.dropEffect = 'copy';
     };
     const onDragLeave = (e: DragEvent) => {
-      if (!e.dataTransfer || !hasFiles(e.dataTransfer)) return;
+      if (!e.dataTransfer || !hasDroppable(e.dataTransfer)) return;
       e.preventDefault();
       dragDepth.current = Math.max(0, dragDepth.current - 1);
       if (dragDepth.current === 0) setDropOverlay(false);
@@ -115,6 +115,20 @@ function Shell() {
       const files = Array.from(e.dataTransfer.files ?? []);
       if (files.length) {
         setQueue((q) => [...q, ...files.map((f) => inferPendingFromFile(f))]);
+        return;
+      }
+      const text = e.dataTransfer.getData('text/plain');
+      if (text && text.trim()) {
+        const trimmed = text.trim();
+        setQueue((q) => [
+          ...q,
+          {
+            kind: 'quote',
+            text: trimmed,
+            preview:
+              trimmed.length > 280 ? `${trimmed.slice(0, 277)}…` : trimmed,
+          },
+        ]);
       }
     };
 
@@ -359,11 +373,11 @@ function Shell() {
   );
 }
 
-function hasFiles(dt: DataTransfer) {
-  if (dt.types) {
-    for (let i = 0; i < dt.types.length; i++) {
-      if (dt.types[i] === 'Files') return true;
-    }
+function hasDroppable(dt: DataTransfer) {
+  if (!dt.types) return false;
+  for (let i = 0; i < dt.types.length; i++) {
+    const t = dt.types[i];
+    if (t === 'Files' || t === 'text/plain' || t === 'text/uri-list') return true;
   }
   return false;
 }
@@ -377,7 +391,7 @@ function DropOverlay() {
         </div>
         <div className="font-display text-xl font-bold text-white">Drop to organize</div>
         <div className="text-sm text-ink-300">
-          We’ll ask where this should live.
+          Files become items. Text becomes a quote. We’ll ask where it lives.
         </div>
       </div>
     </div>

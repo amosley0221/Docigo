@@ -19,6 +19,7 @@ export function Workspace() {
     [active, store],
   );
   const [editingGroup, setEditingGroup] = useState<GroupT | null>(null);
+  const [creatingGroup, setCreatingGroup] = useState(false);
   const storedActiveGroupId = active
     ? store.activeGroupByLocation[active.id]
     : undefined;
@@ -92,6 +93,14 @@ export function Workspace() {
               <span className="text-xs text-ink-400">No groups yet.</span>
             )}
           </div>
+          <button
+            onClick={() => setCreatingGroup(true)}
+            className="rounded-md p-1.5 text-ink-300 hover:bg-white/10 hover:text-white"
+            aria-label="New group"
+            title="New group"
+          >
+            <Icon name="plus" width={14} height={14} />
+          </button>
           {currentGroup && (
             <button
               onClick={() => setEditingGroup(currentGroup)}
@@ -107,7 +116,10 @@ export function Workspace() {
           {currentGroup ? (
             <GroupView group={currentGroup} />
           ) : (
-            <EmptyLocation locName={active.name} />
+            <EmptyLocation
+              locName={active.name}
+              onCreateGroup={() => setCreatingGroup(true)}
+            />
           )}
         </main>
         <GroupFormModal
@@ -119,6 +131,18 @@ export function Workspace() {
           onSubmit={(name) => {
             if (editingGroup) store.renameGroup(editingGroup.id, name);
             setEditingGroup(null);
+          }}
+        />
+        <GroupFormModal
+          open={creatingGroup}
+          mode="create"
+          contextLabel={active ? `Inside ${active.name}` : undefined}
+          onClose={() => setCreatingGroup(false)}
+          onSubmit={async (name) => {
+            if (!active) return;
+            const g = await store.addGroup(active.id, name);
+            store.setActiveGroup(active.id, g.id);
+            setCreatingGroup(false);
           }}
         />
       </div>
@@ -163,7 +187,14 @@ export function Workspace() {
         </div>
       </aside>
       <main className="min-h-0">
-        {currentGroup ? <GroupView group={currentGroup} /> : <EmptyLocation locName={active.name} />}
+        {currentGroup ? (
+          <GroupView group={currentGroup} />
+        ) : (
+          <EmptyLocation
+            locName={active.name}
+            onCreateGroup={() => setCreatingGroup(true)}
+          />
+        )}
       </main>
       <GroupFormModal
         open={!!editingGroup}
@@ -174,6 +205,18 @@ export function Workspace() {
         onSubmit={(name) => {
           if (editingGroup) store.renameGroup(editingGroup.id, name);
           setEditingGroup(null);
+        }}
+      />
+      <GroupFormModal
+        open={creatingGroup}
+        mode="create"
+        contextLabel={active ? `Inside ${active.name}` : undefined}
+        onClose={() => setCreatingGroup(false)}
+        onSubmit={async (name) => {
+          if (!active) return;
+          const g = await store.addGroup(active.id, name);
+          store.setActiveGroup(active.id, g.id);
+          setCreatingGroup(false);
         }}
       />
     </div>
@@ -261,7 +304,13 @@ function GroupRow({
   );
 }
 
-function EmptyLocation({ locName }: { locName: string }) {
+function EmptyLocation({
+  locName,
+  onCreateGroup,
+}: {
+  locName: string;
+  onCreateGroup: () => void;
+}) {
   const { pickFiles } = useUploader();
   return (
     <div className="flex h-full flex-col items-center justify-center px-6 py-12 text-center">
@@ -277,9 +326,18 @@ function EmptyLocation({ locName }: { locName: string }) {
         {locName} is ready.
       </div>
       <div className="mt-2 max-w-md text-sm text-ink-400">
-        Tap the upload icon, drop files anywhere on this window, or paste
-        text to capture a quote. Docigo will ask which group it should go
-        into.
+        Add a group to start, or just drop files / paste text — Docigo will
+        ask where it should live.
+      </div>
+      <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
+        <button onClick={onCreateGroup} className="btn-primary">
+          <Icon name="plus" width={14} height={14} />
+          New group
+        </button>
+        <button onClick={pickFiles} className="btn-quiet">
+          <Icon name="upload" width={14} height={14} />
+          Choose files
+        </button>
       </div>
     </div>
   );
