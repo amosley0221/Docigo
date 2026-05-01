@@ -12,6 +12,7 @@ import { AuthProvider, useAuth } from './state/auth';
 import { AuthScreen } from './components/AuthScreen';
 import { MigratePrompt } from './components/MigratePrompt';
 import { useIsMobile } from './lib/useMediaQuery';
+import { UploaderProvider } from './components/UploaderContext';
 
 export default function App() {
   return (
@@ -225,6 +226,11 @@ function Shell() {
   }, [duplicate, store.items]);
 
   return (
+    <UploaderProvider
+      onFiles={(files) =>
+        setQueue((q) => [...q, ...files.map((f) => inferPendingFromFile(f))])
+      }
+    >
     <div className="grid-bg flex h-full">
       <Sidebar
         collapsed={collapsed}
@@ -289,6 +295,7 @@ function Shell() {
         }}
       />
     </div>
+    </UploaderProvider>
   );
 }
 

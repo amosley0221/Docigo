@@ -4,6 +4,7 @@ import type { GroupT, Item, ItemKind } from '../lib/types';
 import { Icon, type IconName } from './Icon';
 import { FileViewer } from './FileViewer';
 import { humanSize } from '../lib/files';
+import { useUploader } from './UploaderContext';
 
 function describeItem(item: Item): string {
   switch (item.kind) {
@@ -39,6 +40,7 @@ interface GroupViewProps {
 
 export function GroupView({ group }: GroupViewProps) {
   const store = useStore();
+  const { pickFiles } = useUploader();
   const items = store.itemsInGroup(group.id);
   const activeId = store.activeItemByGroup[group.id] ?? items[items.length - 1]?.id ?? null;
   const active = items.find((i) => i.id === activeId) ?? items[items.length - 1] ?? null;
@@ -149,6 +151,14 @@ export function GroupView({ group }: GroupViewProps) {
           )}
         </div>
         <div className="flex shrink-0 items-center justify-end gap-1.5 md:gap-2">
+          <button
+            onClick={pickFiles}
+            className="flex items-center gap-1.5 rounded-md border border-white/10 bg-white/[0.03] px-2 py-1 text-xs text-ink-200 transition hover:bg-white/[0.07]"
+            title="Upload files into this group"
+          >
+            <Icon name="upload" width={13} height={13} />
+            <span className="hidden md:inline">Upload</span>
+          </button>
           <div className="relative" ref={newMenuRef}>
             <button
               className="flex items-center gap-1.5 rounded-md border border-white/10 bg-white/[0.03] px-2 py-1 text-xs text-ink-200 transition hover:bg-white/[0.07]"
@@ -306,16 +316,26 @@ function ItemRow({
 }
 
 function EmptyHint() {
+  const { pickFiles } = useUploader();
   return (
     <div className="flex flex-1 flex-col items-center justify-center px-6 py-16 text-center">
-      <div className="glass mb-5 flex h-14 w-14 items-center justify-center rounded-2xl text-ink-200">
+      <button
+        onClick={pickFiles}
+        className="glass mb-5 flex h-14 w-14 items-center justify-center rounded-2xl text-ink-200 transition hover:bg-white/[0.06] hover:text-white"
+        aria-label="Choose files to upload"
+        title="Choose files"
+      >
         <Icon name="upload" />
-      </div>
-      <div className="font-display text-xl font-semibold text-white">Drop something in.</div>
+      </button>
+      <div className="font-display text-xl font-semibold text-white">Add something.</div>
       <div className="mt-1 max-w-md text-sm text-ink-400">
-        Drag files anywhere on this window, or paste text to capture a quote. Docigo
-        will ask where it goes.
+        Tap the upload icon, drop files anywhere on this window, or paste
+        text to capture a quote. Docigo will ask where it goes.
       </div>
+      <button onClick={pickFiles} className="btn-primary mt-5">
+        <Icon name="upload" width={14} height={14} />
+        Choose files
+      </button>
     </div>
   );
 }

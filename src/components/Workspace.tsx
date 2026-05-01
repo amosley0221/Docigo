@@ -6,6 +6,7 @@ import type { GroupT } from '../lib/types';
 import { GroupFormModal } from './GroupFormModal';
 import { useReorderable, type DragOverState } from '../lib/reorder';
 import { useIsMobile } from '../lib/useMediaQuery';
+import { useUploader } from './UploaderContext';
 
 export function Workspace() {
   const store = useStore();
@@ -259,19 +260,29 @@ function GroupRow({
 }
 
 function EmptyLocation({ locName }: { locName: string }) {
+  const { pickFiles } = useUploader();
   return (
     <div className="flex h-full flex-col items-center justify-center px-6 py-12 text-center">
-      <div className="glass mb-5 flex h-16 w-16 items-center justify-center rounded-2xl text-ink-200">
+      <button
+        onClick={pickFiles}
+        className="glass mb-5 flex h-16 w-16 items-center justify-center rounded-2xl text-ink-200 transition hover:bg-white/[0.06] hover:text-white"
+        aria-label="Choose files to upload"
+        title="Choose files"
+      >
         <Icon name="upload" />
-      </div>
+      </button>
       <div className="font-display text-2xl font-bold text-white">
         {locName} is ready.
       </div>
       <div className="mt-2 max-w-md text-sm text-ink-400">
-        Drop files (Excel, Word, PDFs, images, text) anywhere on this window, or
-        paste text to capture a quote. Docigo will ask which group it should go
+        Tap the upload icon, drop files anywhere on this window, or paste
+        text to capture a quote. Docigo will ask which group it should go
         into.
       </div>
+      <button onClick={pickFiles} className="btn-primary mt-5">
+        <Icon name="upload" width={14} height={14} />
+        Choose files
+      </button>
     </div>
   );
 }
