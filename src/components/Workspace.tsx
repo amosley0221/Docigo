@@ -279,10 +279,6 @@ function EmptyLocation({ locName }: { locName: string }) {
         text to capture a quote. Docigo will ask which group it should go
         into.
       </div>
-      <button onClick={pickFiles} className="btn-primary mt-5">
-        <Icon name="upload" width={14} height={14} />
-        Choose files
-      </button>
     </div>
   );
 }

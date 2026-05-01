@@ -332,10 +332,6 @@ function EmptyHint() {
         Tap the upload icon, drop files anywhere on this window, or paste
         text to capture a quote. Docigo will ask where it goes.
       </div>
-      <button onClick={pickFiles} className="btn-primary mt-5">
-        <Icon name="upload" width={14} height={14} />
-        Choose files
-      </button>
     </div>
   );
 }
