@@ -13,11 +13,14 @@ import { AuthScreen } from './components/AuthScreen';
 import { MigratePrompt } from './components/MigratePrompt';
 import { useIsMobile } from './lib/useMediaQuery';
 import { UploaderProvider } from './components/UploaderContext';
+import { ConfirmProvider } from './components/ConfirmProvider';
 
 export default function App() {
   return (
     <AuthProvider>
-      <AuthGate />
+      <ConfirmProvider>
+        <AuthGate />
+      </ConfirmProvider>
     </AuthProvider>
   );
 }

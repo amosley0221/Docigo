@@ -6,6 +6,7 @@ import { LocationFormModal } from './LocationFormModal';
 import { GroupFormModal } from './GroupFormModal';
 import { useReorderable } from '../lib/reorder';
 import { useIsMobile } from '../lib/useMediaQuery';
+import { useConfirm } from './ConfirmProvider';
 
 const KIND_ICON: Record<LocationKind, IconName> = {
   work: 'briefcase',
@@ -32,6 +33,7 @@ interface SidebarProps {
 export function Sidebar({ collapsed, onToggle, onCollapse }: SidebarProps) {
   const store = useStore();
   const isMobile = useIsMobile();
+  const confirm = useConfirm();
   const [openCreate, setOpenCreate] = useState(false);
   const [editing, setEditing] = useState<LocationT | null>(null);
   const [openGroup, setOpenGroup] = useState(false);
@@ -210,7 +212,7 @@ export function Sidebar({ collapsed, onToggle, onCollapse }: SidebarProps) {
                     <Icon name="edit" width={13} height={13} />
                   </button>
                   <button
-                    onClick={(e) => {
+                    onClick={async (e) => {
                       e.stopPropagation();
                       const detail =
                         groupCount === 0 && itemCount === 0
@@ -218,13 +220,13 @@ export function Sidebar({ collapsed, onToggle, onCollapse }: SidebarProps) {
                           : ` This will also remove ${groupCount} group${
                               groupCount === 1 ? '' : 's'
                             } and ${itemCount} item${itemCount === 1 ? '' : 's'}.`;
-                      if (
-                        confirm(
-                          `Delete location “${loc.name}”?${detail} This can’t be undone.`,
-                        )
-                      ) {
-                        store.deleteLocation(loc.id);
-                      }
+                      const ok = await confirm({
+                        title: `Delete “${loc.name}”?`,
+                        message: `This can’t be undone.${detail}`,
+                        confirmLabel: 'Delete location',
+                        destructive: true,
+                      });
+                      if (ok) store.deleteLocation(loc.id);
                     }}
                     className="rounded-md p-1 text-ink-400 opacity-0 transition hover:bg-red-500/15 hover:text-red-300 group-hover:opacity-100"
                     title="Delete location"

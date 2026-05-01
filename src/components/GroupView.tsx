@@ -5,6 +5,7 @@ import { Icon, type IconName } from './Icon';
 import { FileViewer } from './FileViewer';
 import { humanSize } from '../lib/files';
 import { useUploader } from './UploaderContext';
+import { useConfirm } from './ConfirmProvider';
 
 function describeItem(item: Item): string {
   switch (item.kind) {
@@ -41,6 +42,7 @@ interface GroupViewProps {
 export function GroupView({ group }: GroupViewProps) {
   const store = useStore();
   const { pickFiles } = useUploader();
+  const confirm = useConfirm();
   const items = store.itemsInGroup(group.id);
   const activeId = store.activeItemByGroup[group.id] ?? items[items.length - 1]?.id ?? null;
   const active = items.find((i) => i.id === activeId) ?? items[items.length - 1] ?? null;
@@ -139,10 +141,14 @@ export function GroupView({ group }: GroupViewProps) {
                       store.setActiveItem(group.id, it.id);
                       setDropdown(false);
                     }}
-                    onDelete={() => {
-                      if (confirm(`Remove “${it.name}” from ${group.name}?`)) {
-                        store.deleteItem(it.id);
-                      }
+                    onDelete={async () => {
+                      const ok = await confirm({
+                        title: `Remove “${it.name}”?`,
+                        message: `It will be deleted from ${group.name}. This can’t be undone.`,
+                        confirmLabel: 'Remove',
+                        destructive: true,
+                      });
+                      if (ok) store.deleteItem(it.id);
                     }}
                   />
                 ))}
@@ -215,11 +221,16 @@ export function GroupView({ group }: GroupViewProps) {
           {active && (
             <button
               className="flex items-center gap-1.5 rounded-md border border-white/10 bg-white/[0.03] px-2 py-1 text-xs text-ink-300 transition hover:bg-red-500/15 hover:text-red-300"
-              onClick={() => {
-                const label = active.kind === 'quote' ? 'this quote' : `“${active.name}”`;
-                if (confirm(`Remove ${label}? This can’t be undone.`)) {
-                  store.deleteItem(active.id);
-                }
+              onClick={async () => {
+                const title =
+                  active.kind === 'quote' ? 'Remove this quote?' : `Remove “${active.name}”?`;
+                const ok = await confirm({
+                  title,
+                  message: 'This can’t be undone.',
+                  confirmLabel: 'Remove',
+                  destructive: true,
+                });
+                if (ok) store.deleteItem(active.id);
               }}
               title="Remove this item"
             >

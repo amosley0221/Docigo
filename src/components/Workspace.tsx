@@ -7,10 +7,12 @@ import { GroupFormModal } from './GroupFormModal';
 import { useReorderable, type DragOverState } from '../lib/reorder';
 import { useIsMobile } from '../lib/useMediaQuery';
 import { useUploader } from './UploaderContext';
+import { useConfirm } from './ConfirmProvider';
 
 export function Workspace() {
   const store = useStore();
   const isMobile = useIsMobile();
+  const confirm = useConfirm();
   const active = store.locations.find((l) => l.id === store.activeLocationId);
   const groups = useMemo(
     () => (active ? store.groupsInLocation(active.id) : []),
@@ -46,17 +48,17 @@ export function Workspace() {
     );
   }
 
-  const onDeleteGroup = (g: GroupT) => {
+  const onDeleteGroup = async (g: GroupT) => {
     const count = store.itemsInGroup(g.id).length;
-    if (
-      confirm(
-        count
-          ? `Delete group “${g.name}” and remove its ${count} item${count === 1 ? '' : 's'}?`
-          : `Delete group “${g.name}”?`,
-      )
-    ) {
-      store.deleteGroup(g.id);
-    }
+    const ok = await confirm({
+      title: `Delete “${g.name}”?`,
+      message: count
+        ? `This will also remove ${count} item${count === 1 ? '' : 's'} in the group.`
+        : 'This group is empty.',
+      confirmLabel: 'Delete group',
+      destructive: true,
+    });
+    if (ok) store.deleteGroup(g.id);
   };
 
   if (isMobile) {
