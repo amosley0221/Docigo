@@ -230,14 +230,24 @@ export async function reorderGroups(
 
 // ---------- Items ----------------------------------------------------------
 
-export async function fetchItems(userId: string): Promise<Item[]> {
+export async function fetchItems(
+  userId: string,
+): Promise<{ items: Item[]; searchTexts: Record<string, string> }> {
   const { data, error } = await supabase
     .from('items')
     .select('*')
     .eq('user_id', userId)
     .order('created_at', { ascending: true });
   if (error) throw error;
-  return (data ?? []).map(itemFromRow);
+  const rows = (data ?? []) as ItemRow[];
+  const items = rows.map(itemFromRow);
+  const searchTexts: Record<string, string> = {};
+  for (const r of rows) {
+    if (r.search_text && r.search_text.trim()) {
+      searchTexts[r.id] = r.search_text;
+    }
+  }
+  return { items, searchTexts };
 }
 
 interface ItemInsert {

@@ -111,6 +111,7 @@ interface StoreProviderProps {
 
 export function StoreProvider({ children, userId }: StoreProviderProps) {
   const [state, setState] = useState<StoreState>(() => emptyState());
+  const [searchTexts, setSearchTexts] = useState<Record<string, string>>({});
   const [ready, setReady] = useState(false);
   // Track in-flight async ops so we don't churn the user with errors that
   // race with optimistic updates.
@@ -123,7 +124,7 @@ export function StoreProvider({ children, userId }: StoreProviderProps) {
   }, []);
 
   const refresh = useCallback(async () => {
-    const [locs, grps, its] = await Promise.all([
+    const [locs, grps, itemsRes] = await Promise.all([
       api.fetchLocations(userId),
       api.fetchGroups(userId),
       api.fetchItems(userId),
@@ -135,10 +136,11 @@ export function StoreProvider({ children, userId }: StoreProviderProps) {
         ...s,
         locations: locs,
         groups: grps,
-        items: its,
+        items: itemsRes.items,
         activeLocationId: activeLoc,
       };
     });
+    setSearchTexts(itemsRes.searchTexts);
   }, [userId]);
 
   // Initial hydrate
@@ -146,27 +148,33 @@ export function StoreProvider({ children, userId }: StoreProviderProps) {
     let cancelled = false;
     setReady(false);
     setState(emptyState());
+    setSearchTexts({});
     (async () => {
       try {
-        const [locs, grps, its] = await Promise.all([
+        const [locs, grps, itemsRes] = await Promise.all([
           api.fetchLocations(userId),
           api.fetchGroups(userId),
           api.fetchItems(userId),
         ]);
         // First-time users get the starter set seeded server-side once.
         let seededLocs = locs;
-        if (locs.length === 0 && grps.length === 0 && its.length === 0) {
+        if (
+          locs.length === 0 &&
+          grps.length === 0 &&
+          itemsRes.items.length === 0
+        ) {
           seededLocs = await seedStarter(userId);
         }
         if (cancelled) return;
         setState({
           locations: seededLocs,
           groups: grps,
-          items: its,
+          items: itemsRes.items,
           activeLocationId: seededLocs[0]?.id ?? null,
           activeGroupByLocation: {},
           activeItemByGroup: {},
         });
+        setSearchTexts(itemsRes.searchTexts);
       } catch (err) {
         reportError(err);
       } finally {
@@ -445,6 +453,14 @@ export function StoreProvider({ children, userId }: StoreProviderProps) {
           },
         };
       });
+      // Keep the in-memory search index in sync so the global search picks
+      // up content matches without waiting for a refetch.
+      setSearchTexts((prev) => {
+        const next = { ...prev };
+        if (searchText) next[id] = searchText;
+        else delete next[id];
+        return next;
+      });
       return item;
     };
 
@@ -611,6 +627,12 @@ export function StoreProvider({ children, userId }: StoreProviderProps) {
           activeItemByGroup: next,
         };
       });
+      setSearchTexts((prev) => {
+        if (!(id in prev)) return prev;
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
       try {
         await api.deleteItem(id);
         if (target && isFileItem(target) && target.blobKey) {
@@ -654,11 +676,11 @@ export function StoreProvider({ children, userId }: StoreProviderProps) {
           .sort((a, b) => a.createdAt - b.createdAt),
       groupsInLocation: (locationId) =>
         state.groups.filter((g) => g.locationId === locationId),
-      searchTexts: {},
+      searchTexts,
       refresh,
       ready,
     };
-  }, [state, userId, reportError, refresh, ready]);
+  }, [state, userId, reportError, refresh, ready, searchTexts]);
 
   // Build searchTexts from items with search_text fields. We don't have it
   // here directly because items don't carry searchText on the client type,
