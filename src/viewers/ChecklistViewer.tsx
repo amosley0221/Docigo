@@ -3,12 +3,28 @@ import type { ChecklistEntry, ChecklistItemT } from '../lib/types';
 import { useStore } from '../state/store';
 import { Icon } from '../components/Icon';
 import { uid } from '../lib/files';
+import { useHighlight, useHighlightFor } from '../components/HighlightContext';
 
 export function ChecklistViewer({ item }: { item: ChecklistItemT }) {
   const store = useStore();
   const entries = item.entries;
   const newInputRef = useRef<HTMLInputElement>(null);
   const [draft, setDraft] = useState('');
+  const highlight = useHighlightFor(item.id);
+  const { consume } = useHighlight();
+  const matchedEntryId = useMemo(() => {
+    if (!highlight) return null;
+    const q = highlight.toLowerCase();
+    return entries.find((e) => e.text.toLowerCase().includes(q))?.id ?? null;
+  }, [entries, highlight]);
+  const matchedRef = useRef<HTMLLIElement>(null);
+  useEffect(() => {
+    if (!highlight) return;
+    if (matchedRef.current) {
+      matchedRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+    consume(item.id);
+  }, [highlight, matchedEntryId, item.id, consume]);
 
   const stats = useMemo(() => {
     const done = entries.filter((e) => e.done).length;
@@ -73,6 +89,8 @@ export function ChecklistViewer({ item }: { item: ChecklistItemT }) {
             <ChecklistRow
               key={entry.id}
               entry={entry}
+              highlight={matchedEntryId === entry.id ? highlight : ''}
+              rowRef={matchedEntryId === entry.id ? matchedRef : undefined}
               onToggle={() => toggleEntry(entry.id)}
               onEdit={(t) => editEntry(entry.id, t)}
               onDelete={() => deleteEntry(entry.id)}
@@ -150,11 +168,15 @@ function ChecklistTitle({ item }: { item: ChecklistItemT }) {
 
 function ChecklistRow({
   entry,
+  highlight,
+  rowRef,
   onToggle,
   onEdit,
   onDelete,
 }: {
   entry: ChecklistEntry;
+  highlight?: string;
+  rowRef?: React.RefObject<HTMLLIElement | null>;
   onToggle: () => void;
   onEdit: (text: string) => void;
   onDelete: () => void;
@@ -163,7 +185,14 @@ function ChecklistRow({
   useEffect(() => setText(entry.text), [entry.text]);
 
   return (
-    <li className="group flex items-center gap-2 rounded-lg px-2 py-1.5 transition hover:bg-white/[0.04]">
+    <li
+      ref={rowRef}
+      className={`group flex items-center gap-2 rounded-lg px-2 py-1.5 transition ${
+        highlight
+          ? 'bg-accent-500/15 ring-1 ring-accent-500/40'
+          : 'hover:bg-white/[0.04]'
+      }`}
+    >
       <button
         onClick={onToggle}
         className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border transition ${

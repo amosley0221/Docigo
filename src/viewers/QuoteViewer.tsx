@@ -1,6 +1,15 @@
+import { useEffect } from 'react';
 import type { QuoteItem } from '../lib/types';
+import { useHighlight, useHighlightFor } from '../components/HighlightContext';
 
 export function QuoteViewer({ item }: { item: QuoteItem }) {
+  const highlight = useHighlightFor(item.id);
+  const { consume } = useHighlight();
+
+  useEffect(() => {
+    if (highlight) consume(item.id);
+  }, [highlight, item.id, consume]);
+
   return (
     <div className="flex h-full justify-center overflow-auto p-8">
       <div className="glass max-w-3xl flex-1 rounded-2xl px-10 py-12 shadow-soft">
@@ -14,7 +23,7 @@ export function QuoteViewer({ item }: { item: QuoteItem }) {
           >
             “
           </span>
-          {item.text}
+          {highlight ? renderHighlighted(item.text, highlight) : item.text}
           <span className="ml-1 align-baseline text-4xl text-accent-400" aria-hidden>
             ”
           </span>
@@ -28,4 +37,30 @@ export function QuoteViewer({ item }: { item: QuoteItem }) {
       </div>
     </div>
   );
+}
+
+function renderHighlighted(text: string, query: string) {
+  const q = query.toLowerCase();
+  if (!q) return text;
+  const lower = text.toLowerCase();
+  const out: React.ReactNode[] = [];
+  let i = 0;
+  while (i < text.length) {
+    const next = lower.indexOf(q, i);
+    if (next === -1) {
+      out.push(text.slice(i));
+      break;
+    }
+    if (next > i) out.push(text.slice(i, next));
+    out.push(
+      <mark
+        key={`m-${next}`}
+        className="rounded bg-accent-400/40 px-0.5 text-white"
+      >
+        {text.slice(next, next + query.length)}
+      </mark>,
+    );
+    i = next + query.length;
+  }
+  return out;
 }

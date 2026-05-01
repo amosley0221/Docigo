@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Icon, type IconName } from './Icon';
 import { useStore } from '../state/store';
 import type { Item, ItemKind } from '../lib/types';
+import { useHighlight } from './HighlightContext';
 
 const ICON_FOR_KIND: Record<ItemKind, IconName> = {
   spreadsheet: 'sheet',
@@ -35,6 +36,7 @@ type Hit = ItemHit | GroupHit;
 
 export function SearchBar() {
   const store = useStore();
+  const { request: requestHighlight } = useHighlight();
   const [scope, setScope] = useState<Scope>('current');
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
@@ -156,13 +158,24 @@ export function SearchBar() {
     return [...itemHits.slice(0, 30), ...groupHits.slice(0, 10)];
   }, [trimmed, lower, scope, store]);
 
-  const navigate = (target: { locationId: string; groupId: string; itemId?: string }) => {
+  const navigate = (target: {
+    locationId: string;
+    groupId: string;
+    itemId?: string;
+    highlightQuery?: string;
+  }) => {
     if (target.locationId !== store.activeLocationId) {
       store.setActiveLocation(target.locationId);
     }
     store.setActiveGroup(target.locationId, target.groupId);
     if (target.itemId) {
       store.setActiveItem(target.groupId, target.itemId);
+      if (target.highlightQuery) {
+        requestHighlight({
+          itemId: target.itemId,
+          query: target.highlightQuery,
+        });
+      }
     }
     setOpen(false);
     setQuery('');
@@ -287,6 +300,7 @@ function ResultRow({
     locationId: string;
     groupId: string;
     itemId?: string;
+    highlightQuery?: string;
   }) => void;
 }) {
   if (hit.type === 'group') {
@@ -324,6 +338,8 @@ function ResultRow({
           locationId: item.locationId,
           groupId: item.groupId,
           itemId: item.id,
+          highlightQuery:
+            hit.matchedField === 'name' ? undefined : query,
         })
       }
       className="flex w-full items-start gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm text-ink-200 hover:bg-white/5 hover:text-white"

@@ -15,13 +15,16 @@ import { useIsMobile } from './lib/useMediaQuery';
 import { UploaderProvider } from './components/UploaderContext';
 import { ConfirmProvider } from './components/ConfirmProvider';
 import { UploadStatusProvider, useUploadStatus } from './components/UploadStatus';
+import { HighlightProvider } from './components/HighlightContext';
 
 export default function App() {
   return (
     <AuthProvider>
       <ConfirmProvider>
         <UploadStatusProvider>
-          <AuthGate />
+          <HighlightProvider>
+            <AuthGate />
+          </HighlightProvider>
         </UploadStatusProvider>
       </ConfirmProvider>
     </AuthProvider>
@@ -74,6 +77,9 @@ function Shell() {
     locationId: string;
     groupId: string;
   } | null>(null);
+  const [batchDupAction, setBatchDupAction] = useState<
+    'replace' | 'rename-auto' | null
+  >(null);
   const dragDepth = useRef(0);
 
   const current = queue[0] ?? null;
@@ -169,6 +175,27 @@ function Shell() {
     setQueue((q) => q.slice(1));
   }, []);
 
+  const uploadOnce = useCallback(
+    async (
+      file: File,
+      target: { locationId: string; groupId: string },
+      options?: { replaceItemId?: string; renameTo?: string },
+      displayName?: string,
+    ) => {
+      const taskId = uploadStatus.start(displayName ?? file.name);
+      try {
+        await store.addFile(file, target, options);
+        uploadStatus.succeed(taskId);
+      } catch (err) {
+        uploadStatus.fail(
+          taskId,
+          err instanceof Error ? err.message : 'Upload failed',
+        );
+      }
+    },
+    [store, uploadStatus],
+  );
+
   const processFileWithTarget = useCallback(
     async (
       pending: Pending,
@@ -183,23 +210,33 @@ function Shell() {
         (i) => i.groupId === target.groupId && i.name === pending.file.name,
       );
       if (existing) {
+        // If the user already chose a sticky action for this batch, apply it
+        // automatically without re-prompting.
+        if (batchDupAction === 'replace') {
+          await uploadOnce(pending.file, target, {
+            replaceItemId: existing.id,
+          });
+          closeCurrent();
+          return;
+        }
+        if (batchDupAction === 'rename-auto') {
+          const taken = new Set(
+            store.items
+              .filter((i) => i.groupId === target.groupId)
+              .map((i) => i.name),
+          );
+          const newName = nextUniqueName(pending.file.name, taken);
+          await uploadOnce(pending.file, target, { renameTo: newName }, newName);
+          closeCurrent();
+          return;
+        }
         setDuplicate({ existing, file: pending.file, target });
         return;
       }
-      const taskId = uploadStatus.start(pending.file.name);
-      try {
-        await store.addFile(pending.file, target);
-        uploadStatus.succeed(taskId);
-      } catch (err) {
-        uploadStatus.fail(
-          taskId,
-          err instanceof Error ? err.message : 'Upload failed',
-        );
-      } finally {
-        closeCurrent();
-      }
+      await uploadOnce(pending.file, target);
+      closeCurrent();
     },
-    [store, closeCurrent, uploadStatus],
+    [store, closeCurrent, uploadOnce, batchDupAction],
   );
 
   const handleAssign = useCallback(
@@ -221,12 +258,14 @@ function Shell() {
     if (!batchTarget) return;
     if (!current) {
       setBatchTarget(null);
+      setBatchDupAction(null);
       return;
     }
     if (duplicate) return; // wait for user resolution
     if (current.kind !== 'file') {
       // Hand control back to the modal for non-file items (quotes).
       setBatchTarget(null);
+      setBatchDupAction(null);
       return;
     }
     void processFileWithTarget(current, batchTarget);
@@ -290,45 +329,29 @@ function Shell() {
             : null
         }
         suggestedName={suggestedRename}
+        remainingFileCount={fileQueueLength}
         onCancel={() => {
           setDuplicate(null);
           setBatchTarget(null);
+          setBatchDupAction(null);
         }}
-        onReplace={async () => {
+        onReplace={async (applyToAll) => {
           if (!duplicate) return;
-          const taskId = uploadStatus.start(duplicate.file.name);
-          try {
-            await store.addFile(duplicate.file, duplicate.target, {
-              replaceItemId: duplicate.existing.id,
-            });
-            uploadStatus.succeed(taskId);
-          } catch (err) {
-            uploadStatus.fail(
-              taskId,
-              err instanceof Error ? err.message : 'Upload failed',
-            );
-          } finally {
-            setDuplicate(null);
-            closeCurrent();
-          }
+          if (applyToAll) setBatchDupAction('replace');
+          const dup = duplicate;
+          setDuplicate(null);
+          await uploadOnce(dup.file, dup.target, {
+            replaceItemId: dup.existing.id,
+          });
+          closeCurrent();
         }}
-        onRename={async (newName) => {
+        onRename={async (newName, applyAutoToAll) => {
           if (!duplicate) return;
-          const taskId = uploadStatus.start(newName);
-          try {
-            await store.addFile(duplicate.file, duplicate.target, {
-              renameTo: newName,
-            });
-            uploadStatus.succeed(taskId);
-          } catch (err) {
-            uploadStatus.fail(
-              taskId,
-              err instanceof Error ? err.message : 'Upload failed',
-            );
-          } finally {
-            setDuplicate(null);
-            closeCurrent();
-          }
+          if (applyAutoToAll) setBatchDupAction('rename-auto');
+          const dup = duplicate;
+          setDuplicate(null);
+          await uploadOnce(dup.file, dup.target, { renameTo: newName }, newName);
+          closeCurrent();
         }}
       />
     </div>

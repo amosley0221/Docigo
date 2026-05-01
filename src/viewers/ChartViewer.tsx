@@ -7,6 +7,7 @@ import type {
 import { useStore } from '../state/store';
 import { Icon, type IconName } from '../components/Icon';
 import { uid } from '../lib/files';
+import { useHighlight, useHighlightFor } from '../components/HighlightContext';
 
 const TYPE_LABEL: Record<ChartType, string> = {
   bar: 'Bar',
@@ -36,6 +37,11 @@ const PALETTE = [
 export function ChartViewer({ item }: { item: ChartItemT }) {
   const store = useStore();
   const data = item.data;
+  const highlight = useHighlightFor(item.id);
+  const { consume } = useHighlight();
+  useEffect(() => {
+    if (highlight) consume(item.id);
+  }, [highlight, item.id, consume]);
 
   const update = (patch: Partial<Omit<ChartItemT, 'id' | 'kind'>>) => {
     store.updateChart(item.id, patch);

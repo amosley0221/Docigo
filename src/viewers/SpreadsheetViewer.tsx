@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { getBlob } from '../lib/db';
 import type { FileItem } from '../lib/types';
 import { ViewerError, ViewerLoading } from './Status';
 import { Icon } from '../components/Icon';
+import { useHighlight, useHighlightFor } from '../components/HighlightContext';
 
 interface ParsedSheet {
   name: string;
@@ -16,6 +17,9 @@ export function SpreadsheetViewer({ item }: { item: FileItem }) {
   const [showFilters, setShowFilters] = useState(false);
   const [filters, setFilters] = useState<Record<number, string>>({});
   const [globalQuery, setGlobalQuery] = useState('');
+  const highlight = useHighlightFor(item.id);
+  const { consume } = useHighlight();
+  const firstMatchRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -56,6 +60,28 @@ export function SpreadsheetViewer({ item }: { item: FileItem }) {
     setFilters({});
     setGlobalQuery('');
   }, [active]);
+
+  // When the search bar opens this file with a content match, prefill the
+  // sheet's global search so the user immediately sees the matching rows,
+  // and scroll the first match into view.
+  useEffect(() => {
+    if (!highlight || !sheets) return;
+    const term = highlight.trim();
+    if (!term) {
+      consume(item.id);
+      return;
+    }
+    setFilters({});
+    setGlobalQuery(term);
+    // Scroll happens after the filtered body renders. Defer to next frame.
+    requestAnimationFrame(() => {
+      firstMatchRef.current?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
+      });
+      consume(item.id);
+    });
+  }, [highlight, sheets, item.id, consume]);
 
   const current = sheets ? sheets[active] : null;
   const headers = current?.rows[0] ?? [];
@@ -162,9 +188,9 @@ export function SpreadsheetViewer({ item }: { item: FileItem }) {
         </div>
       </div>
 
-      <div className="flex-1 p-2 md:p-4">
+      <div className="flex min-h-0 flex-1 p-2 md:p-4">
         <div
-          className="glass h-full overflow-auto rounded-xl"
+          className="glass min-h-0 flex-1 overflow-auto rounded-xl"
           style={{ WebkitOverflowScrolling: 'touch' }}
         >
           <div className="grid w-full text-sm" style={{ minWidth: `${colCount * 140}px` }}>
@@ -206,32 +232,53 @@ export function SpreadsheetViewer({ item }: { item: FileItem }) {
                 ))}
               </div>
             )}
-            {filteredBody.map((row, r) => (
-              <div
-                key={r}
-                className="grid border-b border-white/5 transition hover:bg-white/[0.03]"
-                style={{ gridTemplateColumns: `48px repeat(${colCount}, minmax(140px, 1fr))` }}
-              >
-                <div className="px-3 py-2 text-right text-[11px] font-medium text-ink-500">
-                  {r + 1}
-                </div>
-                {Array.from({ length: colCount }).map((_, c) => {
-                  const v = row[c] ?? '';
-                  const num = typeof v === 'string' && /^-?[\d,]+(\.\d+)?$/.test(v.trim());
-                  return (
-                    <div
-                      key={c}
-                      className={`truncate px-3 py-2 text-ink-100 ${
-                        num ? 'text-right tabular-nums' : ''
-                      }`}
-                      title={v}
-                    >
-                      {v}
+            {(() => {
+              const hl = globalQuery.trim().toLowerCase();
+              let firstHit = -1;
+              if (hl) {
+                firstHit = filteredBody.findIndex((row) =>
+                  row.some((cell) => (cell ?? '').toLowerCase().includes(hl)),
+                );
+              }
+              return filteredBody.map((row, r) => {
+                const isFirstHit = r === firstHit;
+                return (
+                  <div
+                    key={r}
+                    ref={isFirstHit ? firstMatchRef : undefined}
+                    className={`grid border-b border-white/5 transition ${
+                      isFirstHit
+                        ? 'bg-accent-500/15 ring-1 ring-inset ring-accent-500/40'
+                        : 'hover:bg-white/[0.03]'
+                    }`}
+                    style={{
+                      gridTemplateColumns: `48px repeat(${colCount}, minmax(140px, 1fr))`,
+                    }}
+                  >
+                    <div className="px-3 py-2 text-right text-[11px] font-medium text-ink-500">
+                      {r + 1}
                     </div>
-                  );
-                })}
-              </div>
-            ))}
+                    {Array.from({ length: colCount }).map((_, c) => {
+                      const v = row[c] ?? '';
+                      const num =
+                        typeof v === 'string' &&
+                        /^-?[\d,]+(\.\d+)?$/.test(v.trim());
+                      return (
+                        <div
+                          key={c}
+                          className={`truncate px-3 py-2 text-ink-100 ${
+                            num ? 'text-right tabular-nums' : ''
+                          }`}
+                          title={v}
+                        >
+                          {hl ? renderCellHighlighted(v, hl) : v}
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              });
+            })()}
             {filteredBody.length === 0 && (
               <div className="px-3 py-6 text-center text-sm text-ink-400">
                 {body.length === 0
@@ -243,6 +290,21 @@ export function SpreadsheetViewer({ item }: { item: FileItem }) {
         </div>
       </div>
     </div>
+  );
+}
+
+function renderCellHighlighted(value: string, qLower: string): React.ReactNode {
+  const lower = value.toLowerCase();
+  const i = lower.indexOf(qLower);
+  if (i === -1) return value;
+  return (
+    <>
+      {value.slice(0, i)}
+      <mark className="rounded bg-accent-400/40 px-0.5 text-white">
+        {value.slice(i, i + qLower.length)}
+      </mark>
+      {value.slice(i + qLower.length)}
+    </>
   );
 }
 
