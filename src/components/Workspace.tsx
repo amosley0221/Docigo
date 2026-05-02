@@ -139,7 +139,7 @@ export function Workspace() {
           <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wider text-ink-400">
             Groups
           </span>
-          <div className="flex flex-1 items-center gap-1.5 overflow-x-auto pb-0.5">
+          <div className="no-scrollbar flex flex-1 items-center gap-1.5 overflow-x-auto pb-0.5">
             {flat.length === 0 && (
               <span className="text-xs text-ink-400">No groups yet.</span>
             )}
