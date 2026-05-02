@@ -186,7 +186,7 @@ export function Workspace() {
           ))}
         </div>
       </aside>
-      <main className="min-h-0">
+      <main className="min-h-0 min-w-0">
         {currentGroup ? (
           <GroupView group={currentGroup} />
         ) : (
