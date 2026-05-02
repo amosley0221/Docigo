@@ -24,6 +24,8 @@ interface StoreState {
   locations: LocationT[];
   groups: GroupT[];
   items: Item[];
+  /** Which top-level view is showing. Defaults to 'home' on sign-in. */
+  viewMode: 'home' | 'location';
   activeLocationId: string | null;
   activeGroupByLocation: Record<string, string>;
   activeItemByGroup: Record<string, string>;
@@ -31,6 +33,7 @@ interface StoreState {
 
 interface StoreActions {
   setActiveLocation: (id: string | null) => void;
+  goHome: () => void;
   addLocation: (
     input: Omit<LocationT, 'id' | 'createdAt'>,
   ) => Promise<LocationT>;
@@ -170,6 +173,7 @@ export function StoreProvider({ children, userId }: StoreProviderProps) {
           locations: seededLocs,
           groups: grps,
           items: itemsRes.items,
+          viewMode: 'home',
           activeLocationId: seededLocs[0]?.id ?? null,
           activeGroupByLocation: {},
           activeItemByGroup: {},
@@ -199,7 +203,14 @@ export function StoreProvider({ children, userId }: StoreProviderProps) {
   // the matching DB write in the background. Failures are logged.
   const actions = useMemo<StoreActions>(() => {
     const setActiveLocation = (id: string | null) =>
-      setState((s) => ({ ...s, activeLocationId: id }));
+      setState((s) => ({
+        ...s,
+        activeLocationId: id,
+        viewMode: id ? 'location' : s.viewMode,
+      }));
+
+    const goHome = () =>
+      setState((s) => ({ ...s, viewMode: 'home' }));
 
     const addLocation = async (input: Omit<LocationT, 'id' | 'createdAt'>) => {
       const id = crypto.randomUUID();
@@ -651,6 +662,7 @@ export function StoreProvider({ children, userId }: StoreProviderProps) {
 
     return {
       setActiveLocation,
+      goHome,
       addLocation,
       renameLocation,
       updateLocation: updateLocationAct,
@@ -697,6 +709,7 @@ function emptyState(): StoreState {
     locations: [],
     groups: [],
     items: [],
+    viewMode: 'home',
     activeLocationId: null,
     activeGroupByLocation: {},
     activeItemByGroup: {},

@@ -16,6 +16,7 @@ import { UploaderProvider } from './components/UploaderContext';
 import { ConfirmProvider } from './components/ConfirmProvider';
 import { UploadStatusProvider, useUploadStatus } from './components/UploadStatus';
 import { HighlightProvider } from './components/HighlightContext';
+import { HomePage } from './components/HomePage';
 
 export default function App() {
   return (
@@ -313,7 +314,7 @@ function Shell() {
           onOpenSidebar={() => setCollapsed(false)}
         />
         <div className="min-h-0 flex-1">
-          <Workspace />
+          {store.viewMode === 'home' ? <HomePage /> : <Workspace />}
         </div>
       </div>
 

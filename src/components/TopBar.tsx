@@ -65,7 +65,16 @@ export function TopBar({ sidebarCollapsed, onOpenSidebar }: TopBarProps) {
           className="flex w-full items-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-2 py-1.5 text-sm font-medium text-white transition hover:bg-white/[0.08] md:w-auto md:gap-2.5 md:px-2.5"
           onClick={() => setOpen((v) => !v)}
         >
-          {active ? (
+          {store.viewMode === 'home' ? (
+            <>
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-gradient-to-br from-accent-500/30 to-fuchsia-500/30 text-accent-200 ring-1 ring-accent-500/30">
+                <Icon name="home" width={13} height={13} />
+              </span>
+              <span className="min-w-0 flex-1 truncate text-left md:max-w-[180px] md:flex-none">
+                Home
+              </span>
+            </>
+          ) : active ? (
             <>
               <span
                 className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md"
@@ -87,6 +96,28 @@ export function TopBar({ sidebarCollapsed, onOpenSidebar }: TopBarProps) {
             <div className="px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wider text-ink-400">
               Switch location
             </div>
+            <div className="px-1 pb-1">
+              <button
+                onClick={() => {
+                  store.goHome();
+                  setOpen(false);
+                }}
+                className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm transition ${
+                  store.viewMode === 'home'
+                    ? 'bg-white/10 text-white'
+                    : 'text-ink-200 hover:bg-white/5 hover:text-white'
+                }`}
+              >
+                <span className="flex h-7 w-7 items-center justify-center rounded-md bg-gradient-to-br from-accent-500/30 to-fuchsia-500/30 text-accent-200 ring-1 ring-accent-500/30">
+                  <Icon name="home" width={14} height={14} />
+                </span>
+                <span className="flex-1 truncate font-medium">Home</span>
+                {store.viewMode === 'home' && (
+                  <Icon name="check" width={14} height={14} className="text-accent-300" />
+                )}
+              </button>
+            </div>
+            <div className="border-t border-white/5" />
             <div className="max-h-72 overflow-y-auto p-1">
               {store.locations.map((loc) => {
                 const isActive = loc.id === store.activeLocationId;

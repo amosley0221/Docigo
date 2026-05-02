@@ -66,6 +66,18 @@ export function Sidebar({ collapsed, onToggle, onCollapse }: SidebarProps) {
           <Icon name="menu" />
         </button>
         <div className="my-2 h-px w-8 bg-white/5" />
+        <button
+          onClick={() => store.goHome()}
+          className={`flex h-9 w-9 items-center justify-center rounded-lg transition ${
+            store.viewMode === 'home'
+              ? 'bg-white/10 text-white'
+              : 'text-ink-300 hover:bg-white/5'
+          }`}
+          title="Home"
+          aria-label="Home"
+        >
+          <Icon name="home" />
+        </button>
         {store.locations.map((loc) => {
           const isActive = loc.id === store.activeLocationId;
           return (
@@ -130,6 +142,22 @@ export function Sidebar({ collapsed, onToggle, onCollapse }: SidebarProps) {
         </div>
 
         <div className="px-3 pb-2">
+          <button
+            onClick={() => {
+              store.goHome();
+              onCollapse();
+            }}
+            className={`mb-2 flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm transition ${
+              store.viewMode === 'home'
+                ? 'bg-white/10 text-white shadow-soft'
+                : 'text-ink-200 hover:bg-white/5 hover:text-white'
+            }`}
+          >
+            <span className="flex h-7 w-7 items-center justify-center rounded-md bg-gradient-to-br from-accent-500/30 to-fuchsia-500/30 text-accent-200 ring-1 ring-accent-500/30">
+              <Icon name="home" width={14} height={14} />
+            </span>
+            <span className="flex-1 truncate font-medium">Home</span>
+          </button>
           <div className="mb-2 flex items-center justify-between px-1">
             <div className="text-[11px] font-semibold uppercase tracking-wider text-ink-400">
               Locations
