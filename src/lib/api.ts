@@ -43,6 +43,7 @@ interface ItemRow {
   mime: string | null;
   size: number | null;
   storage_path: string | null;
+  derived_pdf_path: string | null;
   quote_text: string | null;
   quote_source: string | null;
   checklist_entries: { id: string; text: string; done: boolean }[] | null;
@@ -117,6 +118,7 @@ function itemFromRow(row: ItemRow): Item {
         mime: row.mime ?? '',
         size: row.size ?? 0,
         blobKey: row.storage_path ?? '',
+        derivedPdfBlobKey: row.derived_pdf_path ?? undefined,
       } satisfies FileItem;
   }
 }
@@ -259,6 +261,7 @@ interface ItemInsert {
   mime?: string;
   size?: number;
   storagePath?: string;
+  derivedPdfPath?: string;
   quoteText?: string;
   quoteSource?: string;
   checklistEntries?: { id: string; text: string; done: boolean }[];
@@ -280,6 +283,7 @@ export async function upsertItem(userId: string, it: ItemInsert) {
     mime: it.mime ?? null,
     size: it.size ?? null,
     storage_path: it.storagePath ?? null,
+    derived_pdf_path: it.derivedPdfPath ?? null,
     quote_text: it.quoteText ?? null,
     quote_source: it.quoteSource ?? null,
     checklist_entries: it.checklistEntries ?? null,
@@ -311,6 +315,7 @@ export async function patchItem(
     chartYLabel: string;
     searchText: string;
     storagePath: string;
+    derivedPdfPath: string;
     mime: string;
     size: number;
   }>,
@@ -329,6 +334,7 @@ export async function patchItem(
     chartYLabel: 'chart_y_label',
     searchText: 'search_text',
     storagePath: 'storage_path',
+    derivedPdfPath: 'derived_pdf_path',
     mime: 'mime',
     size: 'size',
   };

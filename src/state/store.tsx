@@ -19,6 +19,12 @@ import type {
 } from '../lib/types';
 import { extractSearchText } from '../lib/extract';
 import * as api from '../lib/api';
+import {
+  convertToPdf,
+  derivedPdfPath,
+  isConversionConfigured,
+  isConvertible,
+} from '../lib/convert';
 
 interface StoreState {
   locations: LocationT[];
@@ -257,9 +263,12 @@ export function StoreProvider({ children, userId }: StoreProviderProps) {
 
     const deleteLocationAct = async (id: string) => {
       // Capture file paths before optimistic delete so we can clean storage.
-      const paths = state.items
-        .filter((i) => i.locationId === id && isFileItem(i) && i.blobKey)
-        .map((i) => (i as FileItem).blobKey);
+      const paths: string[] = [];
+      for (const i of state.items) {
+        if (i.locationId !== id || !isFileItem(i)) continue;
+        if (i.blobKey) paths.push(i.blobKey);
+        if (i.derivedPdfBlobKey) paths.push(i.derivedPdfBlobKey);
+      }
       setState((s) => {
         const groupsInLoc = s.groups
           .filter((g) => g.locationId === id)
@@ -332,9 +341,12 @@ export function StoreProvider({ children, userId }: StoreProviderProps) {
     };
 
     const deleteGroupAct = async (id: string) => {
-      const paths = state.items
-        .filter((i) => i.groupId === id && isFileItem(i) && i.blobKey)
-        .map((i) => (i as FileItem).blobKey);
+      const paths: string[] = [];
+      for (const i of state.items) {
+        if (i.groupId !== id || !isFileItem(i)) continue;
+        if (i.blobKey) paths.push(i.blobKey);
+        if (i.derivedPdfBlobKey) paths.push(i.derivedPdfBlobKey);
+      }
       setState((s) => {
         const nextActiveItem = { ...s.activeItemByGroup };
         delete nextActiveItem[id];
@@ -472,6 +484,37 @@ export function StoreProvider({ children, userId }: StoreProviderProps) {
         else delete next[id];
         return next;
       });
+
+      // For file types we can't render natively (PowerPoint, Keynote),
+      // hand the blob off to the conversion service; once it returns
+      // the PDF, upload it as a sibling and patch the item with the
+      // derived path so the viewer flips to PDF preview.
+      if (
+        kind === 'unknown' &&
+        isConvertible(finalName) &&
+        isConversionConfigured()
+      ) {
+        void (async () => {
+          try {
+            const pdfBlob = await convertToPdf(file, finalName);
+            const pdfPath = derivedPdfPath(item);
+            await api.uploadBlob(pdfPath, pdfBlob, 'application/pdf');
+            await api.patchItem(id, { derivedPdfPath: pdfPath });
+            setState((s) => ({
+              ...s,
+              items: s.items.map((i) =>
+                i.id === id && isFileItem(i)
+                  ? { ...i, derivedPdfBlobKey: pdfPath, updatedAt: Date.now() }
+                  : i,
+              ),
+            }));
+          } catch (err) {
+            // eslint-disable-next-line no-console
+            console.warn('PDF conversion failed for', finalName, err);
+          }
+        })();
+      }
+
       return item;
     };
 
@@ -646,8 +689,10 @@ export function StoreProvider({ children, userId }: StoreProviderProps) {
       });
       try {
         await api.deleteItem(id);
-        if (target && isFileItem(target) && target.blobKey) {
-          await api.removeBlob(target.blobKey).catch(() => {});
+        if (target && isFileItem(target)) {
+          if (target.blobKey) await api.removeBlob(target.blobKey).catch(() => {});
+          if (target.derivedPdfBlobKey)
+            await api.removeBlob(target.derivedPdfBlobKey).catch(() => {});
         }
       } catch (err) {
         reportError(err);

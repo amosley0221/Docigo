@@ -2,6 +2,7 @@ import type { FileItem } from '../lib/types';
 import { Icon } from '../components/Icon';
 import { humanSize } from '../lib/files';
 import { runNativeAppAction } from '../lib/nativeApp';
+import { isConversionConfigured, isConvertible } from '../lib/convert';
 
 interface FileTypeHint {
   /** Headline shown above the message. */
@@ -48,6 +49,11 @@ function hintFor(item: FileItem): FileTypeHint | null {
 
 export function UnknownViewer({ item }: { item: FileItem }) {
   const hint = hintFor(item);
+  // The conversion service is converting this file in the background;
+  // the viewer will switch to PDF preview as soon as the derived path
+  // is patched onto the item.
+  const converting =
+    isConversionConfigured() && isConvertible(item.name) && !item.derivedPdfBlobKey;
 
   return (
     <div className="flex h-full items-center justify-center p-6 md:p-8">
@@ -65,6 +71,16 @@ export function UnknownViewer({ item }: { item: FileItem }) {
             </div>
           </div>
         </div>
+
+        {converting && (
+          <div className="mt-5 flex items-center gap-2.5 rounded-xl border border-accent-500/30 bg-accent-500/10 px-3 py-2.5 text-sm text-accent-100">
+            <span className="h-2 w-2 animate-pulse rounded-full bg-accent-400" />
+            <span>
+              Converting to PDF… this view will refresh automatically when
+              it’s ready (typically 10–30 seconds).
+            </span>
+          </div>
+        )}
 
         {hint ? (
           <>

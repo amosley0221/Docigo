@@ -20,6 +20,15 @@ export function FileViewer({ item }: { item: Item }) {
   if (item.kind === 'quote') return <QuoteViewer item={item} />;
   if (item.kind === 'checklist') return <ChecklistViewer item={item} />;
   if (item.kind === 'chart') return <ChartViewer item={item} />;
+  // For file kinds we can't render natively (PowerPoint, etc), the
+  // conversion service writes a sibling PDF and we render that instead.
+  if (item.kind === 'unknown' && item.derivedPdfBlobKey) {
+    return (
+      <PdfViewer
+        item={{ ...item, blobKey: item.derivedPdfBlobKey }}
+      />
+    );
+  }
   switch (item.kind) {
     case 'spreadsheet':
       return (

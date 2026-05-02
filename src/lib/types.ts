@@ -50,6 +50,12 @@ export interface FileItem extends BaseItem {
   size: number;
   /** Stored in IndexedDB blob store, keyed by id */
   blobKey: string;
+  /**
+   * For file kinds we can't render natively (PowerPoint, etc), the
+   * conversion service writes a sibling PDF and stores its path here.
+   * Viewers prefer the derived PDF when set.
+   */
+  derivedPdfBlobKey?: string;
   /** Cached parsed payload for quick render. Optional; can be re-derived. */
   cache?: unknown;
 }

@@ -12,6 +12,13 @@ services:
         value: https://nvypvpdgombzwcmjcnxk.supabase.co
       - key: VITE_SUPABASE_PUBLISHABLE_KEY
         value: sb_publishable_Z7MMwOGGRA1Zncru9ZIy1g_hK1jfMzk
+      - key: VITE_CONVERT_URL
+        # Set after the docigo-convert service is created. Render exposes
+        # the running URL as RENDER_EXTERNAL_URL on the service itself,
+        # so for the static site we paste the convert service's external
+        # URL here (https://docigo-convert.onrender.com or whatever the
+        # dashboard shows).
+        sync: false
     headers:
       - path: /assets/*
         name: Cache-Control
@@ -22,3 +29,23 @@ services:
       - path: /*
         name: Referrer-Policy
         value: strict-origin-when-cross-origin
+
+  - type: web
+    name: docigo-convert
+    runtime: docker
+    rootDir: convert
+    plan: starter
+    healthCheckPath: /healthz
+    envVars:
+      - key: SUPABASE_URL
+        value: https://nvypvpdgombzwcmjcnxk.supabase.co
+      - key: SUPABASE_PUBLISHABLE_KEY
+        value: sb_publishable_Z7MMwOGGRA1Zncru9ZIy1g_hK1jfMzk
+      - key: ALLOWED_ORIGINS
+        # Comma-separated list of origins allowed to call /convert.
+        # Add your custom domain too if you wire one up.
+        value: https://docigo.onrender.com,http://localhost:5173
+      - key: MAX_BYTES
+        value: "26214400"
+      - key: SOFFICE_TIMEOUT_MS
+        value: "60000"

@@ -36,6 +36,10 @@ create table if not exists public.items (
   mime         text,
   size         bigint,
   storage_path text,
+  /* For file kinds that we can't preview directly (e.g. PowerPoint), the
+     conversion service writes a sibling PDF and stores its path here.
+     The viewer prefers the derived PDF when set. */
+  derived_pdf_path text,
   -- Quote:
   quote_text   text,
   quote_source text,
@@ -123,3 +127,9 @@ create policy "files_own_delete" on storage.objects
     bucket_id = 'files'
     and (storage.foldername(name))[1] = auth.uid()::text
   );
+
+-- ---------- Migrations for older databases --------------------------------
+-- Safe to run on a fresh schema (the create above already includes the
+-- column); only does work on databases that pre-date the column being added.
+alter table public.items
+  add column if not exists derived_pdf_path text;
