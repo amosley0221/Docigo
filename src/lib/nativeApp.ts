@@ -33,14 +33,20 @@ export async function runNativeAppAction(item: FileItem): Promise<void> {
     return;
   }
 
-  // Download path: pull the blob and either offer the share sheet (iOS,
-  // recent Android, Safari with file-share support) or fall back to a
-  // direct download anchor.
+  // Download path: pull the blob and either offer the share sheet (only
+  // on mobile, where the desktop OS share sheet doesn't include
+  // "Save to Files") or fall back to a regular download anchor.
   const blob = await api.downloadBlob(item.blobKey);
   const mime = item.mime || blob.type || 'application/octet-stream';
   const file = new File([blob], item.name, { type: mime });
 
+  const isMobile =
+    typeof window !== 'undefined' &&
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia('(max-width: 767px)').matches;
+
   if (
+    isMobile &&
     typeof navigator !== 'undefined' &&
     typeof navigator.canShare === 'function' &&
     navigator.canShare({ files: [file] })
