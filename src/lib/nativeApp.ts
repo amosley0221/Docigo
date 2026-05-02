@@ -7,10 +7,9 @@ interface NativeAppAction {
   /**
    * 'open' opens the signed URL in a new tab so the browser / OS can
    * route to its default handler (browsers preview PDFs natively, etc).
-   * 'download' streams the file to the user's device. On platforms that
-   * support the Web Share API for files (iOS Safari, recent Android),
-   * the share sheet is used so the user can pick an "Open in…" target
-   * directly instead of digging through Files.
+   * 'download' streams the file to the user's device. The OS / browser
+   * then opens it with whatever app the user has associated with the
+   * file extension.
    */
   mode: 'open' | 'download';
 }
@@ -33,38 +32,19 @@ export async function runNativeAppAction(item: FileItem): Promise<void> {
     return;
   }
 
-  // Download path: pull the blob and either offer the share sheet (only
-  // on mobile, where the desktop OS share sheet doesn't include
-  // "Save to Files") or fall back to a regular download anchor.
+  // Pull the blob and trigger a regular browser download. Wrapping the
+  // Blob with the original mime type makes Safari attach the right
+  // extension on the saved file (it would otherwise re-derive the
+  // extension from a generic application/octet-stream).
   const blob = await api.downloadBlob(item.blobKey);
   const mime = item.mime || blob.type || 'application/octet-stream';
-  const file = new File([blob], item.name, { type: mime });
+  const typed = blob.type === mime ? blob : new Blob([blob], { type: mime });
 
-  const isMobile =
-    typeof window !== 'undefined' &&
-    typeof window.matchMedia === 'function' &&
-    window.matchMedia('(max-width: 767px)').matches;
-
-  if (
-    isMobile &&
-    typeof navigator !== 'undefined' &&
-    typeof navigator.canShare === 'function' &&
-    navigator.canShare({ files: [file] })
-  ) {
-    try {
-      await navigator.share({ files: [file], title: item.name });
-      return;
-    } catch (err) {
-      // User cancelled the share sheet — that's fine, don't double-fire.
-      if (err instanceof Error && err.name === 'AbortError') return;
-      // Otherwise fall through to the regular download path.
-    }
-  }
-
-  const url = URL.createObjectURL(blob);
+  const url = URL.createObjectURL(typed);
   const a = document.createElement('a');
   a.href = url;
   a.download = item.name;
+  a.rel = 'noopener';
   document.body.appendChild(a);
   a.click();
   a.remove();
