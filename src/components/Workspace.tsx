@@ -309,7 +309,9 @@ function flattenGroups(
   const walk = (group: GroupT, depth: number) => {
     const children = all.filter((g) => g.parentGroupId === group.id);
     out.push({ group, depth, hasChildren: children.length > 0 });
-    if (children.length && expanded[group.id]) {
+    // Default to expanded — users opt out by toggling the chevron
+    // (which writes `false` into the map). Treat missing entries as true.
+    if (children.length && expanded[group.id] !== false) {
       for (const c of children) walk(c, depth + 1);
     }
   };
@@ -356,7 +358,7 @@ function GroupTree({
       {siblings.map((g) => {
         const childCount = groups.filter((x) => x.parentGroupId === g.id).length;
         const itemCount = store.itemsInGroup(g.id).length;
-        const isExpanded = !!expanded[g.id];
+        const isExpanded = expanded[g.id] !== false;
         const isActive = g.id === currentId;
         const dragOver =
           reorder.overState && reorder.overState.id === g.id
@@ -376,7 +378,10 @@ function GroupTree({
               isDragging={isDragging}
               dragOver={dragOver}
               onToggle={() =>
-                setExpanded((prev) => ({ ...prev, [g.id]: !prev[g.id] }))
+                setExpanded((prev) => ({
+                  ...prev,
+                  [g.id]: prev[g.id] === false ? true : false,
+                }))
               }
               onSelect={() => onSelect(g.id)}
               onAddChild={() => onAddChild(g.id)}
