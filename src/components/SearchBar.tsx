@@ -164,9 +164,10 @@ export function SearchBar() {
     itemId?: string;
     highlightQuery?: string;
   }) => {
-    if (target.locationId !== store.activeLocationId) {
-      store.setActiveLocation(target.locationId);
-    }
+    // Always set the active location — this also flips viewMode from
+    // 'home' to 'location' so we leave the home page even when the
+    // result's location happens to match the previous activeLocationId.
+    store.setActiveLocation(target.locationId);
     store.setActiveGroup(target.locationId, target.groupId);
     if (target.itemId) {
       store.setActiveItem(target.groupId, target.itemId);
