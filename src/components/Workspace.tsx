@@ -128,7 +128,11 @@ export function Workspace() {
   );
 
   if (isMobile) {
-    const flat = flattenGroups(topGroups, allGroupsInLocation, expanded);
+    // On mobile there's no chevron UI to expand subgroups, so always show
+    // every group in the location regardless of the tree's expanded state.
+    const allExpanded: Record<string, boolean> = {};
+    for (const g of allGroupsInLocation) allExpanded[g.id] = true;
+    const flat = flattenGroups(topGroups, allGroupsInLocation, allExpanded);
     return (
       <div className="flex h-full flex-col">
         <div className="flex items-center gap-2 border-b border-white/5 bg-black/20 px-3 py-2">
