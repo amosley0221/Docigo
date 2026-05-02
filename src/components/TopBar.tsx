@@ -120,7 +120,8 @@ export function TopBar({ sidebarCollapsed, onOpenSidebar }: TopBarProps) {
             <div className="border-t border-white/5" />
             <div className="max-h-72 overflow-y-auto p-1">
               {store.locations.map((loc) => {
-                const isActive = loc.id === store.activeLocationId;
+                const isActive =
+                  store.viewMode === 'location' && loc.id === store.activeLocationId;
                 return (
                   <button
                     key={loc.id}

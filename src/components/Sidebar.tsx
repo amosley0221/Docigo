@@ -79,7 +79,8 @@ export function Sidebar({ collapsed, onToggle, onCollapse }: SidebarProps) {
           <Icon name="home" />
         </button>
         {store.locations.map((loc) => {
-          const isActive = loc.id === store.activeLocationId;
+          const isActive =
+            store.viewMode === 'location' && loc.id === store.activeLocationId;
           return (
             <button
               key={loc.id}
@@ -172,7 +173,8 @@ export function Sidebar({ collapsed, onToggle, onCollapse }: SidebarProps) {
           </div>
           <div className="flex flex-col gap-0.5">
             {store.locations.map((loc) => {
-              const isActive = loc.id === store.activeLocationId;
+              const isActive =
+            store.viewMode === 'location' && loc.id === store.activeLocationId;
               const itemCount = store.items.filter((i) => i.locationId === loc.id).length;
               const groupCount = store.groupsInLocation(loc.id).length;
               const isDragging = locReorder.draggingId === loc.id;
