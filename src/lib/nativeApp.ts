@@ -2,64 +2,59 @@ import type { FileItem } from './types';
 import * as api from './api';
 
 interface NativeAppAction {
-  /** UI label like "Open in Excel" or "Download". */
+  /** UI label like "Download" or "Open PDF". */
   label: string;
   /**
-   * 'office' uses an ms-office: URI scheme that hands the file to a
-   * locally installed Microsoft app. 'open' opens the signed URL in a
-   * new tab (the browser/OS picks the handler — usually Adobe Reader
-   * for PDFs). 'download' streams the file as an attachment.
+   * 'open' opens the signed URL in a new tab so the browser / OS can
+   * route to its default handler (browsers preview PDFs natively, etc).
+   * 'download' streams the file to the user's device. On platforms that
+   * support the Web Share API for files (iOS Safari, recent Android),
+   * the share sheet is used so the user can pick an "Open in…" target
+   * directly instead of digging through Files.
    */
-  mode: 'office' | 'open' | 'download';
-  /** ms-office scheme prefix when mode === 'office'. */
-  officeScheme?: 'ms-excel' | 'ms-word' | 'ms-powerpoint';
+  mode: 'open' | 'download';
 }
-
-const OFFICE_BY_EXT: Record<string, { scheme: 'ms-excel' | 'ms-word' | 'ms-powerpoint'; app: string }> = {
-  xlsx: { scheme: 'ms-excel', app: 'Excel' },
-  xls: { scheme: 'ms-excel', app: 'Excel' },
-  xlsm: { scheme: 'ms-excel', app: 'Excel' },
-  csv: { scheme: 'ms-excel', app: 'Excel' },
-  docx: { scheme: 'ms-word', app: 'Word' },
-  doc: { scheme: 'ms-word', app: 'Word' },
-  docm: { scheme: 'ms-word', app: 'Word' },
-  pptx: { scheme: 'ms-powerpoint', app: 'PowerPoint' },
-  ppt: { scheme: 'ms-powerpoint', app: 'PowerPoint' },
-  pptm: { scheme: 'ms-powerpoint', app: 'PowerPoint' },
-};
 
 export function getNativeAppAction(item: FileItem): NativeAppAction {
   const name = item.name.toLowerCase();
-  const ext = name.includes('.') ? name.slice(name.lastIndexOf('.') + 1) : '';
-  const office = OFFICE_BY_EXT[ext];
-  if (office) {
-    return { label: `Open in ${office.app}`, mode: 'office', officeScheme: office.scheme };
-  }
-  if (ext === 'pdf' || item.kind === 'pdf') {
+  if (item.kind === 'pdf' || name.endsWith('.pdf')) {
     return { label: 'Open PDF', mode: 'open' };
   }
   return { label: 'Download', mode: 'download' };
 }
 
-/**
- * Run the action for an item. Returns once the action has been kicked
- * off (ms-office handoff is fire-and-forget; download/open complete
- * once the browser hands control to the OS).
- */
+/** Run the action for an item. Resolves once the action has been kicked off. */
 export async function runNativeAppAction(item: FileItem): Promise<void> {
   const action = getNativeAppAction(item);
-  if (action.mode === 'office') {
-    const url = await api.getSignedUrl(item.blobKey, 60 * 30); // 30 min
-    window.location.href = `${action.officeScheme}:ofe|u|${url}`;
-    return;
-  }
+
   if (action.mode === 'open') {
     const url = await api.getSignedUrl(item.blobKey, 60 * 30);
     window.open(url, '_blank', 'noopener');
     return;
   }
-  // Default: download via blob so the filename is preserved.
+
+  // Download path: pull the blob and either offer the share sheet (iOS,
+  // recent Android, Safari with file-share support) or fall back to a
+  // direct download anchor.
   const blob = await api.downloadBlob(item.blobKey);
+  const mime = item.mime || blob.type || 'application/octet-stream';
+  const file = new File([blob], item.name, { type: mime });
+
+  if (
+    typeof navigator !== 'undefined' &&
+    typeof navigator.canShare === 'function' &&
+    navigator.canShare({ files: [file] })
+  ) {
+    try {
+      await navigator.share({ files: [file], title: item.name });
+      return;
+    } catch (err) {
+      // User cancelled the share sheet — that's fine, don't double-fire.
+      if (err instanceof Error && err.name === 'AbortError') return;
+      // Otherwise fall through to the regular download path.
+    }
+  }
+
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
