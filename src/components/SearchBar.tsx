@@ -208,7 +208,7 @@ export function SearchBar() {
       </div>
 
       {open && trimmed.length > 0 && (
-        <div className="glass-strong absolute right-0 top-[calc(100%+6px)] z-40 w-[calc(100vw-24px)] max-w-[520px] overflow-hidden rounded-xl shadow-soft md:w-[520px] md:max-w-[80vw]">
+        <div className="glass-strong fixed left-3 right-3 top-[calc(env(safe-area-inset-top,0px)+56px)] z-40 max-h-[70vh] overflow-hidden rounded-xl shadow-soft md:absolute md:left-auto md:right-0 md:top-[calc(100%+6px)] md:w-[520px] md:max-h-none md:max-w-[80vw]">
           <div className="flex items-center justify-between gap-2 border-b border-white/5 px-3 py-2">
             <div className="min-w-0 flex-1 truncate text-[11px] font-semibold uppercase tracking-wider text-ink-400">
               {scope === 'current'
@@ -228,7 +228,7 @@ export function SearchBar() {
             </div>
           ) : (
             <div className="max-h-[60vh] overflow-y-auto p-1">
-              {hits.map((hit, i) => (
+              {hits.map((hit) => (
                 <ResultRow
                   key={
                     hit.type === 'item' ? `item-${hit.item.id}` : `group-${hit.groupId}`
@@ -236,7 +236,6 @@ export function SearchBar() {
                   hit={hit}
                   query={trimmed}
                   store={store}
-                  isFirst={i === 0}
                   onNavigate={navigate}
                 />
               ))}
@@ -289,13 +288,11 @@ function ResultRow({
   hit,
   query,
   store,
-  isFirst,
   onNavigate,
 }: {
   hit: Hit;
   query: string;
   store: ReturnType<typeof useStore>;
-  isFirst: boolean;
   onNavigate: (target: {
     locationId: string;
     groupId: string;
@@ -307,7 +304,6 @@ function ResultRow({
     const loc = store.locations.find((l) => l.id === hit.locationId);
     return (
       <button
-        autoFocus={isFirst}
         onClick={() =>
           onNavigate({ locationId: hit.locationId, groupId: hit.groupId })
         }
@@ -332,7 +328,6 @@ function ResultRow({
   const group = store.groups.find((g) => g.id === item.groupId);
   return (
     <button
-      autoFocus={isFirst}
       onClick={() =>
         onNavigate({
           locationId: item.locationId,
