@@ -108,7 +108,7 @@ export function Sidebar({ collapsed, onToggle, onCollapse }: SidebarProps) {
       <aside
         className={
           isMobile
-            ? 'fixed inset-y-0 left-0 z-50 flex h-full w-[85%] max-w-[320px] flex-col border-r border-white/5 bg-ink-950/95 shadow-glow'
+            ? 'safe-top safe-bottom fixed inset-y-0 left-0 z-50 flex h-full w-[85%] max-w-[320px] flex-col border-r border-white/5 bg-ink-950/95 shadow-glow'
             : 'flex h-full w-72 flex-col border-r border-white/5 bg-black/40'
         }
       >

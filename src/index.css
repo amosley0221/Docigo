@@ -19,6 +19,30 @@ body,
   text-rendering: optimizeLegibility;
 }
 
+/* Respect iOS safe areas (notch / Dynamic Island at the top, home
+ * indicator at the bottom, side insets in landscape). The viewport is
+ * already declared with viewport-fit=cover so env(safe-area-inset-*)
+ * resolves to the right values. The body fills the screen edge-to-edge
+ * with the dark background; #root holds all UI inside the safe area. */
+#root {
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+
+/* Fixed-position overlays don't inherit #root's padding, so help them
+ * out individually. */
+.safe-top {
+  padding-top: env(safe-area-inset-top);
+}
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.inset-safe-top {
+  top: env(safe-area-inset-top);
+}
+
 * {
   box-sizing: border-box;
 }

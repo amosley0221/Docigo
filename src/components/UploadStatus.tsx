@@ -77,7 +77,10 @@ export function UploadStatusProvider({ children }: { children: ReactNode }) {
     <Ctx.Provider value={api}>
       {children}
       {visible && (
-        <div className="pointer-events-none fixed bottom-4 right-4 z-[60] flex max-w-[calc(100vw-32px)] flex-col gap-2 md:max-w-sm">
+        <div
+          className="pointer-events-none fixed right-4 z-[60] flex max-w-[calc(100vw-32px)] flex-col gap-2 md:max-w-sm"
+          style={{ bottom: 'calc(env(safe-area-inset-bottom) + 1rem)' }}
+        >
           {uploading.length > 0 && (
             <Toast
               tone="busy"
