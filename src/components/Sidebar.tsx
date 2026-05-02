@@ -176,7 +176,9 @@ export function Sidebar({ collapsed, onToggle, onCollapse }: SidebarProps) {
               const isActive =
             store.viewMode === 'location' && loc.id === store.activeLocationId;
               const itemCount = store.items.filter((i) => i.locationId === loc.id).length;
-              const groupCount = store.groupsInLocation(loc.id).length;
+              // Count every group/subgroup under this location for the
+              // cascade-delete prompt, not just the top-level ones.
+              const groupCount = store.groups.filter((g) => g.locationId === loc.id).length;
               const isDragging = locReorder.draggingId === loc.id;
               const indicator =
                 locReorder.overState?.id === loc.id && locReorder.draggingId !== loc.id

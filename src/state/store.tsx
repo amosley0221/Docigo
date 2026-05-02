@@ -50,10 +50,16 @@ interface StoreActions {
   ) => void;
   deleteLocation: (id: string) => Promise<void>;
   reorderLocations: (orderedIds: string[]) => void;
-  addGroup: (locationId: string, name: string) => Promise<GroupT>;
+  addGroup: (
+    locationId: string,
+    name: string,
+    parentGroupId?: string | null,
+  ) => Promise<GroupT>;
   renameGroup: (id: string, name: string) => void;
   deleteGroup: (id: string) => Promise<void>;
-  reorderGroups: (locationId: string, orderedIds: string[]) => void;
+  reorderGroups: (orderedIds: string[]) => void;
+  /** Children of a group (one level only — call recursively for trees). */
+  childGroups: (parentId: string) => GroupT[];
   setActiveGroup: (locationId: string, groupId: string) => void;
   addFile: (
     file: File,
@@ -317,15 +323,28 @@ export function StoreProvider({ children, userId }: StoreProviderProps) {
       api.reorderLocations(userId, orderedIds).catch(reportError);
     };
 
-    const addGroup = async (locationId: string, name: string) => {
+    const addGroup = async (
+      locationId: string,
+      name: string,
+      parentGroupId: string | null = null,
+    ) => {
       const id = crypto.randomUUID();
       const createdAt = Date.now();
-      const g: GroupT = { id, locationId, name, createdAt };
+      const g: GroupT = { id, locationId, parentGroupId, name, createdAt };
       setState((s) => ({ ...s, groups: [...s.groups, g] }));
       try {
-        const position = state.groups.filter((x) => x.locationId === locationId)
-          .length;
-        await api.insertGroup(userId, { id, locationId, name, position });
+        const position = state.groups.filter(
+          (x) =>
+            x.locationId === locationId &&
+            (x.parentGroupId ?? null) === parentGroupId,
+        ).length;
+        await api.insertGroup(userId, {
+          id,
+          locationId,
+          parentGroupId,
+          name,
+          position,
+        });
       } catch (err) {
         reportError(err);
       }
@@ -370,24 +389,27 @@ export function StoreProvider({ children, userId }: StoreProviderProps) {
       }
     };
 
-    const reorderGroupsAct = (locationId: string, orderedIds: string[]) => {
+    const reorderGroupsAct = (orderedIds: string[]) => {
+      // Reorder a single sibling list (groups sharing the same
+      // location_id + parent_group_id). Other groups keep their slots.
       setState((s) => {
-        const inLocation = s.groups.filter((g) => g.locationId === locationId);
-        const byId = new Map(inLocation.map((g) => [g.id, g]));
-        const reorderedInLoc: GroupT[] = [];
+        const targetSet = new Set(orderedIds);
+        const target = s.groups.filter((g) => targetSet.has(g.id));
+        const byId = new Map(target.map((g) => [g.id, g]));
+        const reordered: GroupT[] = [];
         for (const id of orderedIds) {
           const g = byId.get(id);
           if (g) {
-            reorderedInLoc.push(g);
+            reordered.push(g);
             byId.delete(id);
           }
         }
-        for (const g of byId.values()) reorderedInLoc.push(g);
+        for (const g of byId.values()) reordered.push(g);
         const result: GroupT[] = [];
         let i = 0;
         for (const g of s.groups) {
-          if (g.locationId === locationId) {
-            const next = reorderedInLoc[i++];
+          if (targetSet.has(g.id)) {
+            const next = reordered[i++];
             if (next) result.push(next);
           } else {
             result.push(g);
@@ -395,7 +417,7 @@ export function StoreProvider({ children, userId }: StoreProviderProps) {
         }
         return { ...s, groups: result };
       });
-      api.reorderGroups(userId, locationId, orderedIds).catch(reportError);
+      api.reorderGroups(userId, orderedIds).catch(reportError);
     };
 
     const setActiveGroup = (locationId: string, groupId: string) =>
@@ -732,7 +754,11 @@ export function StoreProvider({ children, userId }: StoreProviderProps) {
           .filter((i) => i.groupId === groupId)
           .sort((a, b) => a.createdAt - b.createdAt),
       groupsInLocation: (locationId) =>
-        state.groups.filter((g) => g.locationId === locationId),
+        state.groups.filter(
+          (g) => g.locationId === locationId && !g.parentGroupId,
+        ),
+      childGroups: (parentId) =>
+        state.groups.filter((g) => g.parentGroupId === parentId),
       searchTexts,
       refresh,
       ready,

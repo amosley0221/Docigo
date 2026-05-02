@@ -47,8 +47,14 @@ export function AssignModal({
   const [applyToAll, setApplyToAll] = useState(true);
   const [busy, setBusy] = useState(false);
 
+  // Show every group in the location, top-level and nested. Users get
+  // a one-line breadcrumb with each pill so they can route uploads
+  // straight into a specific subgroup.
   const groups = useMemo(
-    () => (locationId ? store.groupsInLocation(locationId) : []),
+    () =>
+      locationId
+        ? store.groups.filter((g) => g.locationId === locationId)
+        : [],
     [locationId, store],
   );
 

@@ -11,6 +11,8 @@ export interface LocationT {
 export interface GroupT {
   id: string;
   locationId: string;
+  /** Null/undefined when this is a top-level group under a location. */
+  parentGroupId?: string | null;
   name: string;
   createdAt: number;
 }

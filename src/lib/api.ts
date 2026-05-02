@@ -28,6 +28,7 @@ interface GroupRow {
   id: string;
   user_id: string;
   location_id: string;
+  parent_group_id: string | null;
   name: string;
   position: number;
   created_at: string;
@@ -73,6 +74,7 @@ function groupFromRow(row: GroupRow): GroupT {
   return {
     id: row.id,
     locationId: row.location_id,
+    parentGroupId: row.parent_group_id ?? null,
     name: row.name,
     createdAt: Date.parse(row.created_at),
   };
@@ -189,12 +191,19 @@ export async function fetchGroups(userId: string): Promise<GroupT[]> {
 
 export async function insertGroup(
   userId: string,
-  g: { id: string; locationId: string; name: string; position: number },
+  g: {
+    id: string;
+    locationId: string;
+    parentGroupId?: string | null;
+    name: string;
+    position: number;
+  },
 ) {
   const { error } = await supabase.from('groups').insert({
     id: g.id,
     user_id: userId,
     location_id: g.locationId,
+    parent_group_id: g.parentGroupId ?? null,
     name: g.name,
     position: g.position,
   });
@@ -216,16 +225,16 @@ export async function deleteGroup(id: string) {
 
 export async function reorderGroups(
   userId: string,
-  locationId: string,
   orderedIds: string[],
 ) {
+  // Each siblings list reorders independently; we update by id only,
+  // relying on RLS + user_id to scope.
   for (let i = 0; i < orderedIds.length; i++) {
     const { error } = await supabase
       .from('groups')
       .update({ position: i })
       .eq('id', orderedIds[i])
-      .eq('user_id', userId)
-      .eq('location_id', locationId);
+      .eq('user_id', userId);
     if (error) throw error;
   }
 }

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useStore } from '../state/store';
 import { GroupView } from './GroupView';
 import { Icon } from './Icon';
@@ -9,36 +9,79 @@ import { useIsMobile } from '../lib/useMediaQuery';
 import { useUploader } from './UploaderContext';
 import { useConfirm } from './ConfirmProvider';
 
+interface NewGroupTarget {
+  /** Null = create a top-level group under the active location. */
+  parentGroupId: string | null;
+}
+
 export function Workspace() {
   const store = useStore();
   const isMobile = useIsMobile();
   const confirm = useConfirm();
   const active = store.locations.find((l) => l.id === store.activeLocationId);
-  const groups = useMemo(
+
+  const allGroupsInLocation = useMemo(
+    () => (active ? store.groups.filter((g) => g.locationId === active.id) : []),
+    [active, store.groups],
+  );
+  const topGroups = useMemo(
     () => (active ? store.groupsInLocation(active.id) : []),
     [active, store],
   );
+
   const [editingGroup, setEditingGroup] = useState<GroupT | null>(null);
-  const [creatingGroup, setCreatingGroup] = useState(false);
+  const [newGroup, setNewGroup] = useState<NewGroupTarget | null>(null);
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+
   const storedActiveGroupId = active
     ? store.activeGroupByLocation[active.id]
     : undefined;
 
-  const groupReorder = useReorderable<GroupT>({
-    items: groups,
-    onReorder: (orderedIds) => {
-      if (active) store.reorderGroups(active.id, orderedIds);
-    },
-    mimeType: 'application/x-docigo-group',
-  });
-
+  // The active group can be at any depth; look it up across the whole
+  // in-location list, falling back to the first top-level group if the
+  // stored id is stale or unset.
   const currentGroupId =
-    storedActiveGroupId && groups.find((g) => g.id === storedActiveGroupId)
+    storedActiveGroupId &&
+    allGroupsInLocation.find((g) => g.id === storedActiveGroupId)
       ? storedActiveGroupId
-      : groups[0]?.id ?? null;
-  const currentGroup = groups.find((g) => g.id === currentGroupId) ?? null;
+      : topGroups[0]?.id ?? null;
+  const currentGroup =
+    allGroupsInLocation.find((g) => g.id === currentGroupId) ?? null;
+
   const setActiveGroupId = (id: string) => {
     if (active) store.setActiveGroup(active.id, id);
+  };
+
+  // Auto-expand ancestors of the active group so the tree highlights it.
+  useEffect(() => {
+    if (!currentGroup) return;
+    setExpanded((prev) => {
+      const next = { ...prev };
+      let cursor: GroupT | undefined = currentGroup;
+      while (cursor?.parentGroupId) {
+        next[cursor.parentGroupId] = true;
+        cursor = allGroupsInLocation.find((g) => g.id === cursor!.parentGroupId);
+      }
+      return next;
+    });
+  }, [currentGroup?.id, allGroupsInLocation]);
+
+  const onDeleteGroup = async (g: GroupT) => {
+    const childCount = allGroupsInLocation.filter(
+      (x) => x.parentGroupId === g.id,
+    ).length;
+    const itemCount = store.itemsInGroup(g.id).length;
+    const detail =
+      childCount === 0 && itemCount === 0
+        ? 'This group is empty.'
+        : `This will also remove ${childCount} subgroup${childCount === 1 ? '' : 's'} and ${itemCount} item${itemCount === 1 ? '' : 's'}.`;
+    const ok = await confirm({
+      title: `Delete “${g.name}”?`,
+      message: detail,
+      confirmLabel: 'Delete',
+      destructive: true,
+    });
+    if (ok) store.deleteGroup(g.id);
   };
 
   if (!active) {
@@ -49,20 +92,43 @@ export function Workspace() {
     );
   }
 
-  const onDeleteGroup = async (g: GroupT) => {
-    const count = store.itemsInGroup(g.id).length;
-    const ok = await confirm({
-      title: `Delete “${g.name}”?`,
-      message: count
-        ? `This will also remove ${count} item${count === 1 ? '' : 's'} in the group.`
-        : 'This group is empty.',
-      confirmLabel: 'Delete group',
-      destructive: true,
-    });
-    if (ok) store.deleteGroup(g.id);
-  };
+  const formModals = (
+    <>
+      <GroupFormModal
+        open={!!editingGroup}
+        mode="edit"
+        initial={editingGroup}
+        contextLabel={contextLabelFor(editingGroup, allGroupsInLocation, active.name)}
+        onClose={() => setEditingGroup(null)}
+        onSubmit={(name) => {
+          if (editingGroup) store.renameGroup(editingGroup.id, name);
+          setEditingGroup(null);
+        }}
+      />
+      <GroupFormModal
+        open={!!newGroup}
+        mode="create"
+        contextLabel={
+          newGroup?.parentGroupId
+            ? `Inside ${allGroupsInLocation.find((g) => g.id === newGroup.parentGroupId)?.name ?? '…'}`
+            : `Inside ${active.name}`
+        }
+        onClose={() => setNewGroup(null)}
+        onSubmit={async (name) => {
+          if (!newGroup) return;
+          const g = await store.addGroup(active.id, name, newGroup.parentGroupId);
+          if (newGroup.parentGroupId) {
+            setExpanded((prev) => ({ ...prev, [newGroup.parentGroupId!]: true }));
+          }
+          store.setActiveGroup(active.id, g.id);
+          setNewGroup(null);
+        }}
+      />
+    </>
+  );
 
   if (isMobile) {
+    const flat = flattenGroups(topGroups, allGroupsInLocation, expanded);
     return (
       <div className="flex h-full flex-col">
         <div className="flex items-center gap-2 border-b border-white/5 bg-black/20 px-3 py-2">
@@ -70,34 +136,45 @@ export function Workspace() {
             Groups
           </span>
           <div className="flex flex-1 items-center gap-1.5 overflow-x-auto pb-0.5">
-            {groups.map((g) => {
-              const isActive = g.id === currentGroupId;
-              const count = store.itemsInGroup(g.id).length;
+            {flat.length === 0 && (
+              <span className="text-xs text-ink-400">No groups yet.</span>
+            )}
+            {flat.map(({ group, depth, hasChildren }) => {
+              const isActive = group.id === currentGroupId;
+              const count = store.itemsInGroup(group.id).length;
               return (
                 <button
-                  key={g.id}
-                  onClick={() => setActiveGroupId(g.id)}
+                  key={group.id}
+                  onClick={() => setActiveGroupId(group.id)}
                   className={`flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition ${
                     isActive
                       ? 'border-accent-500/60 bg-accent-500/15 text-white'
                       : 'border-white/10 bg-white/[0.02] text-ink-200'
                   }`}
+                  style={{ marginLeft: depth * 6 }}
                 >
-                  <Icon name="folder" width={11} height={11} />
-                  <span className="max-w-[120px] truncate">{g.name}</span>
+                  <Icon
+                    name={hasChildren ? 'folder' : 'folder'}
+                    width={11}
+                    height={11}
+                  />
+                  <span className="max-w-[140px] truncate">{group.name}</span>
                   <span className="text-[10px] text-ink-400">{count}</span>
                 </button>
               );
             })}
-            {groups.length === 0 && (
-              <span className="text-xs text-ink-400">No groups yet.</span>
-            )}
           </div>
           <button
-            onClick={() => setCreatingGroup(true)}
+            onClick={() =>
+              setNewGroup({ parentGroupId: currentGroup?.id ?? null })
+            }
             className="rounded-md p-1.5 text-ink-300 hover:bg-white/10 hover:text-white"
             aria-label="New group"
-            title="New group"
+            title={
+              currentGroup
+                ? `New subgroup in ${currentGroup.name}`
+                : 'New group'
+            }
           >
             <Icon name="plus" width={14} height={14} />
           </button>
@@ -114,133 +191,244 @@ export function Workspace() {
         </div>
         <main className="min-h-0 flex-1">
           {currentGroup ? (
-            <GroupView group={currentGroup} />
+            <GroupView
+              group={currentGroup}
+              onCreateSubgroup={() =>
+                setNewGroup({ parentGroupId: currentGroup.id })
+              }
+            />
           ) : (
             <EmptyLocation
               locName={active.name}
-              onCreateGroup={() => setCreatingGroup(true)}
+              onCreateGroup={() => setNewGroup({ parentGroupId: null })}
             />
           )}
         </main>
-        <GroupFormModal
-          open={!!editingGroup}
-          mode="edit"
-          initial={editingGroup}
-          contextLabel={active ? `Inside ${active.name}` : undefined}
-          onClose={() => setEditingGroup(null)}
-          onSubmit={(name) => {
-            if (editingGroup) store.renameGroup(editingGroup.id, name);
-            setEditingGroup(null);
-          }}
-        />
-        <GroupFormModal
-          open={creatingGroup}
-          mode="create"
-          contextLabel={active ? `Inside ${active.name}` : undefined}
-          onClose={() => setCreatingGroup(false)}
-          onSubmit={async (name) => {
-            if (!active) return;
-            const g = await store.addGroup(active.id, name);
-            store.setActiveGroup(active.id, g.id);
-            setCreatingGroup(false);
-          }}
-        />
+        {formModals}
       </div>
     );
   }
 
   return (
-    <div className="grid h-full grid-cols-[240px_1fr]">
+    <div className="grid h-full grid-cols-[260px_1fr]">
       <aside className="flex flex-col border-r border-white/5 bg-black/20">
-        <div className="px-4 pb-2 pt-4">
-          <div className="text-[11px] font-semibold uppercase tracking-wider text-ink-400">
-            {active.name}
+        <div className="flex items-center justify-between px-4 pb-2 pt-4">
+          <div>
+            <div className="text-[11px] font-semibold uppercase tracking-wider text-ink-400">
+              {active.name}
+            </div>
+            <div className="mt-0.5 font-display text-base font-semibold text-white">
+              Groups
+            </div>
           </div>
-          <div className="mt-0.5 font-display text-base font-semibold text-white">
-            Groups
-          </div>
+          <button
+            onClick={() => setNewGroup({ parentGroupId: null })}
+            className="rounded-md p-1.5 text-ink-300 hover:bg-white/10 hover:text-white"
+            title="New group"
+            aria-label="New group"
+          >
+            <Icon name="plus" width={14} height={14} />
+          </button>
         </div>
         <div className="flex-1 overflow-y-auto px-2 pb-3">
-          {groups.length === 0 && (
+          {topGroups.length === 0 && (
             <div className="px-2 py-2 text-xs text-ink-400">
-              No groups yet — drop a file or use the sidebar to add one.
+              No groups yet — drop a file or click “+” to add one.
             </div>
           )}
-          {groups.map((g) => (
-            <GroupRow
-              key={g.id}
-              group={g}
-              isActive={g.id === currentGroupId}
-              count={store.itemsInGroup(g.id).length}
-              dragBind={groupReorder.bind(g.id)}
-              isDragging={groupReorder.draggingId === g.id}
-              dragOver={
-                groupReorder.overState && groupReorder.overState.id === g.id
-                  ? groupReorder.overState
-                  : null
-              }
-              onSelect={() => setActiveGroupId(g.id)}
-              onEdit={() => setEditingGroup(g)}
-              onDelete={() => onDeleteGroup(g)}
-            />
-          ))}
+          <GroupTree
+            parentId={null}
+            groups={allGroupsInLocation}
+            currentId={currentGroupId}
+            expanded={expanded}
+            setExpanded={setExpanded}
+            depth={0}
+            onSelect={(id) => setActiveGroupId(id)}
+            onAddChild={(parentId) => setNewGroup({ parentGroupId: parentId })}
+            onEdit={(g) => setEditingGroup(g)}
+            onDelete={onDeleteGroup}
+            store={store}
+          />
         </div>
       </aside>
       <main className="min-h-0 min-w-0">
         {currentGroup ? (
-          <GroupView group={currentGroup} />
+          <GroupView
+            group={currentGroup}
+            onCreateSubgroup={() =>
+              setNewGroup({ parentGroupId: currentGroup.id })
+            }
+          />
         ) : (
           <EmptyLocation
             locName={active.name}
-            onCreateGroup={() => setCreatingGroup(true)}
+            onCreateGroup={() => setNewGroup({ parentGroupId: null })}
           />
         )}
       </main>
-      <GroupFormModal
-        open={!!editingGroup}
-        mode="edit"
-        initial={editingGroup}
-        contextLabel={active ? `Inside ${active.name}` : undefined}
-        onClose={() => setEditingGroup(null)}
-        onSubmit={(name) => {
-          if (editingGroup) store.renameGroup(editingGroup.id, name);
-          setEditingGroup(null);
-        }}
-      />
-      <GroupFormModal
-        open={creatingGroup}
-        mode="create"
-        contextLabel={active ? `Inside ${active.name}` : undefined}
-        onClose={() => setCreatingGroup(false)}
-        onSubmit={async (name) => {
-          if (!active) return;
-          const g = await store.addGroup(active.id, name);
-          store.setActiveGroup(active.id, g.id);
-          setCreatingGroup(false);
-        }}
-      />
+      {formModals}
     </div>
   );
 }
 
-function GroupRow({
+function contextLabelFor(
+  g: GroupT | null,
+  all: GroupT[],
+  locationName: string,
+): string | undefined {
+  if (!g) return undefined;
+  const path: string[] = [];
+  let cursor: GroupT | undefined = g;
+  while (cursor?.parentGroupId) {
+    const p = all.find((x) => x.id === cursor!.parentGroupId);
+    if (!p) break;
+    path.unshift(p.name);
+    cursor = p;
+  }
+  if (path.length === 0) return `Inside ${locationName}`;
+  return `Inside ${locationName} › ${path.join(' › ')}`;
+}
+
+interface FlatRow {
+  group: GroupT;
+  depth: number;
+  hasChildren: boolean;
+}
+
+/** Depth-first flatten that respects the expanded map. */
+function flattenGroups(
+  topGroups: GroupT[],
+  all: GroupT[],
+  expanded: Record<string, boolean>,
+): FlatRow[] {
+  const out: FlatRow[] = [];
+  const walk = (group: GroupT, depth: number) => {
+    const children = all.filter((g) => g.parentGroupId === group.id);
+    out.push({ group, depth, hasChildren: children.length > 0 });
+    if (children.length && expanded[group.id]) {
+      for (const c of children) walk(c, depth + 1);
+    }
+  };
+  for (const g of topGroups) walk(g, 0);
+  return out;
+}
+
+function GroupTree({
+  parentId,
+  groups,
+  currentId,
+  expanded,
+  setExpanded,
+  depth,
+  onSelect,
+  onAddChild,
+  onEdit,
+  onDelete,
+  store,
+}: {
+  parentId: string | null;
+  groups: GroupT[];
+  currentId: string | null;
+  expanded: Record<string, boolean>;
+  setExpanded: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
+  depth: number;
+  onSelect: (id: string) => void;
+  onAddChild: (parentId: string) => void;
+  onEdit: (g: GroupT) => void;
+  onDelete: (g: GroupT) => void;
+  store: ReturnType<typeof useStore>;
+}) {
+  const siblings = groups.filter((g) => (g.parentGroupId ?? null) === parentId);
+  const reorder = useReorderable<GroupT>({
+    items: siblings,
+    onReorder: (orderedIds) => store.reorderGroups(orderedIds),
+    mimeType: 'application/x-docigo-group',
+  });
+
+  if (siblings.length === 0) return null;
+
+  return (
+    <>
+      {siblings.map((g) => {
+        const childCount = groups.filter((x) => x.parentGroupId === g.id).length;
+        const itemCount = store.itemsInGroup(g.id).length;
+        const isExpanded = !!expanded[g.id];
+        const isActive = g.id === currentId;
+        const dragOver =
+          reorder.overState && reorder.overState.id === g.id
+            ? reorder.overState
+            : null;
+        const isDragging = reorder.draggingId === g.id;
+        return (
+          <div key={g.id}>
+            <GroupTreeRow
+              group={g}
+              depth={depth}
+              hasChildren={childCount > 0}
+              isExpanded={isExpanded}
+              isActive={isActive}
+              itemCount={itemCount}
+              dragBind={reorder.bind(g.id)}
+              isDragging={isDragging}
+              dragOver={dragOver}
+              onToggle={() =>
+                setExpanded((prev) => ({ ...prev, [g.id]: !prev[g.id] }))
+              }
+              onSelect={() => onSelect(g.id)}
+              onAddChild={() => onAddChild(g.id)}
+              onEdit={() => onEdit(g)}
+              onDelete={() => onDelete(g)}
+            />
+            {isExpanded && childCount > 0 && (
+              <GroupTree
+                parentId={g.id}
+                groups={groups}
+                currentId={currentId}
+                expanded={expanded}
+                setExpanded={setExpanded}
+                depth={depth + 1}
+                onSelect={onSelect}
+                onAddChild={onAddChild}
+                onEdit={onEdit}
+                onDelete={onDelete}
+                store={store}
+              />
+            )}
+          </div>
+        );
+      })}
+    </>
+  );
+}
+
+function GroupTreeRow({
   group,
+  depth,
+  hasChildren,
+  isExpanded,
   isActive,
-  count,
+  itemCount,
   dragBind,
   isDragging,
   dragOver,
+  onToggle,
   onSelect,
+  onAddChild,
   onEdit,
   onDelete,
 }: {
   group: GroupT;
+  depth: number;
+  hasChildren: boolean;
+  isExpanded: boolean;
   isActive: boolean;
-  count: number;
+  itemCount: number;
   dragBind: React.HTMLAttributes<HTMLElement> & { draggable?: boolean };
   isDragging: boolean;
   dragOver: DragOverState | null;
+  onToggle: () => void;
   onSelect: () => void;
+  onAddChild: () => void;
   onEdit: () => void;
   onDelete: () => void;
 }) {
@@ -248,7 +436,8 @@ function GroupRow({
   return (
     <div
       {...dragBind}
-      className={`group relative mb-0.5 flex w-full items-center gap-1 rounded-lg px-1 transition ${
+      style={{ paddingLeft: depth * 12 }}
+      className={`group relative mb-0.5 flex w-full items-center rounded-lg px-1 transition ${
         isDragging ? 'opacity-40' : ''
       } ${
         isActive
@@ -263,20 +452,44 @@ function GroupRow({
           }`}
         />
       )}
-      <span
-        className="flex w-3 cursor-grab items-center justify-center self-stretch text-ink-500 opacity-0 group-hover:opacity-100 active:cursor-grabbing"
-        title="Drag to reorder"
-        aria-hidden
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          onToggle();
+        }}
+        className="flex h-7 w-5 shrink-0 items-center justify-center text-ink-500 transition hover:text-white"
+        title={hasChildren ? (isExpanded ? 'Collapse' : 'Expand') : ''}
+        aria-label={isExpanded ? 'Collapse' : 'Expand'}
       >
-        ⋮⋮
-      </span>
+        {hasChildren ? (
+          <Icon
+            name="chevron-right"
+            width={12}
+            height={12}
+            className={`transition-transform ${isExpanded ? 'rotate-90' : ''}`}
+          />
+        ) : (
+          <span className="block h-1 w-1 rounded-full bg-ink-600" />
+        )}
+      </button>
       <button
         onClick={onSelect}
-        className="flex flex-1 items-center gap-2 px-1.5 py-2 text-left text-sm"
+        className="flex flex-1 items-center gap-2 px-1 py-2 text-left text-sm"
       >
-        <Icon name="folder" width={14} height={14} className="text-ink-400" />
+        <Icon name="folder" width={13} height={13} className="text-ink-400" />
         <span className="flex-1 truncate">{group.name}</span>
-        <span className="text-xs text-ink-400">{count}</span>
+        <span className="text-xs text-ink-400">{itemCount}</span>
+      </button>
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          onAddChild();
+        }}
+        className="rounded-md p-1 text-ink-400 opacity-0 transition hover:bg-white/10 hover:text-white group-hover:opacity-100"
+        title="New subgroup"
+        aria-label={`Add subgroup to ${group.name}`}
+      >
+        <Icon name="plus" width={12} height={12} />
       </button>
       <button
         onClick={(e) => {
@@ -284,10 +497,10 @@ function GroupRow({
           onEdit();
         }}
         className="rounded-md p-1 text-ink-400 opacity-0 transition hover:bg-white/10 hover:text-white group-hover:opacity-100"
-        title="Rename group"
+        title="Rename"
         aria-label={`Rename ${group.name}`}
       >
-        <Icon name="edit" width={13} height={13} />
+        <Icon name="edit" width={12} height={12} />
       </button>
       <button
         onClick={(e) => {
@@ -295,10 +508,10 @@ function GroupRow({
           onDelete();
         }}
         className="rounded-md p-1 text-ink-400 opacity-0 transition hover:bg-red-500/15 hover:text-red-300 group-hover:opacity-100"
-        title="Delete group"
+        title="Delete"
         aria-label={`Delete ${group.name}`}
       >
-        <Icon name="trash" width={13} height={13} />
+        <Icon name="trash" width={12} height={12} />
       </button>
     </div>
   );

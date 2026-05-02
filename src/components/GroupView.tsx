@@ -50,9 +50,11 @@ const ICON_FOR_KIND: Record<ItemKind, IconName> = {
 
 interface GroupViewProps {
   group: GroupT;
+  /** Opens a "create subgroup" prompt when invoked. */
+  onCreateSubgroup?: () => void;
 }
 
-export function GroupView({ group }: GroupViewProps) {
+export function GroupView({ group, onCreateSubgroup }: GroupViewProps) {
   const store = useStore();
   const { pickFiles } = useUploader();
   const confirm = useConfirm();
@@ -93,6 +95,10 @@ export function GroupView({ group }: GroupViewProps) {
     store.addChart(target, 'New chart');
     setNewMenu(false);
   };
+  const createSubgroup = () => {
+    if (onCreateSubgroup) onCreateSubgroup();
+    setNewMenu(false);
+  };
 
   const headerStats = useMemo(() => {
     const counts = items.reduce<Record<string, number>>((acc, i) => {
@@ -102,10 +108,25 @@ export function GroupView({ group }: GroupViewProps) {
     return counts;
   }, [items]);
 
+  // Build a breadcrumb of ancestor groups so the header shows
+  // "Semester › Course › ..." when the active group is nested.
+  const breadcrumb = useMemo(() => {
+    const path: string[] = [];
+    let cursor: GroupT | undefined = group;
+    while (cursor?.parentGroupId) {
+      const parent = store.groups.find((g) => g.id === cursor!.parentGroupId);
+      if (!parent) break;
+      path.unshift(parent.name);
+      cursor = parent;
+    }
+    return path;
+  }, [group, store.groups]);
+
   return (
     <div className="flex h-full flex-col">
       <GroupHeader
         group={group}
+        breadcrumb={breadcrumb}
         subtitle={
           items.length === 0
             ? 'No items yet.'
@@ -199,6 +220,22 @@ export function GroupView({ group }: GroupViewProps) {
                   Create in {group.name}
                 </div>
                 <div className="p-1">
+                  {onCreateSubgroup && (
+                    <button
+                      onClick={createSubgroup}
+                      className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm text-ink-200 hover:bg-white/5 hover:text-white"
+                    >
+                      <span className="flex h-7 w-7 items-center justify-center rounded-md bg-white/5 text-accent-300">
+                        <Icon name="folder" width={14} height={14} />
+                      </span>
+                      <div className="flex-1">
+                        <div className="font-medium text-white">Subgroup</div>
+                        <div className="text-[11px] text-ink-400">
+                          Nest a folder under this group.
+                        </div>
+                      </div>
+                    </button>
+                  )}
                   <button
                     onClick={createChecklist}
                     className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm text-ink-200 hover:bg-white/5 hover:text-white"
@@ -298,15 +335,28 @@ export function GroupView({ group }: GroupViewProps) {
 function GroupHeader({
   group,
   subtitle,
+  breadcrumb,
 }: {
   group: GroupT;
   subtitle: string;
+  breadcrumb?: string[];
 }) {
   return (
     <div className="border-b border-white/5 bg-black/20 px-3 pb-2 pt-3 md:px-5 md:pb-3 md:pt-4">
-      <div className="hidden items-center gap-2 text-xs text-ink-400 md:flex">
-        <Icon name="folder" width={12} height={12} />
-        Group
+      <div className="flex items-center gap-1.5 truncate text-xs text-ink-400">
+        <Icon name="folder" width={12} height={12} className="shrink-0" />
+        {breadcrumb && breadcrumb.length > 0 ? (
+          <span className="truncate">
+            {breadcrumb.map((name, i) => (
+              <span key={i}>
+                {i > 0 && <span className="px-1 text-ink-600">›</span>}
+                <span className="text-ink-400">{name}</span>
+              </span>
+            ))}
+          </span>
+        ) : (
+          <span className="hidden md:inline">Group</span>
+        )}
       </div>
       <div className="mt-0 flex flex-col gap-0 md:mt-1 md:flex-row md:items-baseline md:gap-2">
         <h2 className="font-display text-lg font-bold tracking-tight text-white md:text-2xl">

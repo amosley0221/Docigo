@@ -20,6 +20,9 @@ create table if not exists public.groups (
   id          uuid primary key default gen_random_uuid(),
   user_id     uuid not null references auth.users(id) on delete cascade,
   location_id uuid not null references public.locations(id) on delete cascade,
+  /* Nullable self-reference: when set, this group is a subgroup of
+     another group. Top-level groups under a location have NULL. */
+  parent_group_id uuid references public.groups(id) on delete cascade,
   name        text not null,
   position    int  not null default 0,
   created_at  timestamptz not null default now()
@@ -133,3 +136,8 @@ create policy "files_own_delete" on storage.objects
 -- column); only does work on databases that pre-date the column being added.
 alter table public.items
   add column if not exists derived_pdf_path text;
+alter table public.groups
+  add column if not exists parent_group_id uuid
+  references public.groups(id) on delete cascade;
+create index if not exists groups_user_parent_idx
+  on public.groups (user_id, parent_group_id, position);
