@@ -43,12 +43,19 @@ interface DragHandlersOptions<T extends { id: string }> {
    * unrelated drags (e.g. file uploads) don't reorder rows.
    */
   mimeType: string;
+  /**
+   * When false, bind() returns no drag attributes — taps on rows fire
+   * normal clicks. Useful for touch-only devices where HTML5 drag
+   * eats the first tap.
+   */
+  enabled?: boolean;
 }
 
 export function useReorderable<T extends { id: string }>({
   items,
   onReorder,
   mimeType,
+  enabled = true,
 }: DragHandlersOptions<T>) {
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [overState, setOverState] = useState<DragOverState | null>(null);
@@ -101,14 +108,19 @@ export function useReorderable<T extends { id: string }>({
   return {
     draggingId,
     overState,
-    bind: (id: string) => ({
-      draggable: true,
-      onDragStart: (e: React.DragEvent<HTMLElement>) => onDragStart(e, id),
-      onDragOver: (e: React.DragEvent<HTMLElement>) => onDragOver(e, id),
-      onDragLeave: (e: React.DragEvent<HTMLElement>) => onDragLeave(e, id),
-      onDrop: (e: React.DragEvent<HTMLElement>) => onDrop(e, id),
-      onDragEnd,
-    }),
+    bind: (id: string) =>
+      enabled
+        ? {
+            draggable: true,
+            onDragStart: (e: React.DragEvent<HTMLElement>) =>
+              onDragStart(e, id),
+            onDragOver: (e: React.DragEvent<HTMLElement>) => onDragOver(e, id),
+            onDragLeave: (e: React.DragEvent<HTMLElement>) =>
+              onDragLeave(e, id),
+            onDrop: (e: React.DragEvent<HTMLElement>) => onDrop(e, id),
+            onDragEnd,
+          }
+        : { draggable: false as const },
   };
 }
 
