@@ -6,6 +6,19 @@ import { FileViewer } from './FileViewer';
 import { humanSize } from '../lib/files';
 import { useUploader } from './UploaderContext';
 import { useConfirm } from './ConfirmProvider';
+import { getNativeAppAction, runNativeAppAction } from '../lib/nativeApp';
+import type { FileItem } from '../lib/types';
+
+function isFileItem(i: Item): i is FileItem {
+  return (
+    i.kind === 'spreadsheet' ||
+    i.kind === 'document' ||
+    i.kind === 'pdf' ||
+    i.kind === 'image' ||
+    i.kind === 'text' ||
+    i.kind === 'unknown'
+  );
+}
 
 function describeItem(item: Item): string {
   switch (item.kind) {
@@ -218,6 +231,22 @@ export function GroupView({ group }: GroupViewProps) {
               </div>
             )}
           </div>
+          {active && isFileItem(active) && (
+            <button
+              className="flex items-center gap-1.5 rounded-md border border-white/10 bg-white/[0.03] px-2 py-1 text-xs text-ink-200 transition hover:bg-white/[0.07]"
+              onClick={async () => {
+                try {
+                  await runNativeAppAction(active);
+                } catch (err) {
+                  console.error('Open failed:', err);
+                }
+              }}
+              title={getNativeAppAction(active).label}
+            >
+              <Icon name="upload" width={13} height={13} className="rotate-180" />
+              <span className="hidden md:inline">{getNativeAppAction(active).label}</span>
+            </button>
+          )}
           {active && (
             <button
               className="flex items-center gap-1.5 rounded-md border border-white/10 bg-white/[0.03] px-2 py-1 text-xs text-ink-300 transition hover:bg-red-500/15 hover:text-red-300"
@@ -244,7 +273,7 @@ export function GroupView({ group }: GroupViewProps) {
       <div className="min-h-0 flex-1 overflow-hidden">
         {active ? (
           <div className="flex h-full justify-center">
-            <div className="h-full w-full min-w-0 md:w-[70%]">
+            <div className="h-full w-full min-w-0">
               <FileViewer item={active} />
             </div>
           </div>
