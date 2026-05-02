@@ -5,7 +5,7 @@ import type { LocationKind, LocationT } from '../lib/types';
 import { LocationFormModal } from './LocationFormModal';
 import { GroupFormModal } from './GroupFormModal';
 import { useReorderable } from '../lib/reorder';
-import { useHasFinePointer, useIsMobile } from '../lib/useMediaQuery';
+import { useIsMobile } from '../lib/useMediaQuery';
 import { useConfirm } from './ConfirmProvider';
 
 const KIND_ICON: Record<LocationKind, IconName> = {
@@ -39,13 +39,11 @@ export function Sidebar({ collapsed, onToggle, onCollapse }: SidebarProps) {
   const [openGroup, setOpenGroup] = useState(false);
 
   const active = store.locations.find((l) => l.id === store.activeLocationId) ?? null;
-  const hasFinePointer = useHasFinePointer();
 
   const locReorder = useReorderable({
     items: store.locations,
     onReorder: store.reorderLocations,
     mimeType: 'application/x-docigo-location',
-    enabled: hasFinePointer,
   });
 
   const groups = useMemo(

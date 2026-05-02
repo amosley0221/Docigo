@@ -5,7 +5,7 @@ import { Icon } from './Icon';
 import type { GroupT } from '../lib/types';
 import { GroupFormModal } from './GroupFormModal';
 import { useReorderable, type DragOverState } from '../lib/reorder';
-import { useHasFinePointer, useIsMobile } from '../lib/useMediaQuery';
+import { useIsMobile } from '../lib/useMediaQuery';
 import { useUploader } from './UploaderContext';
 import { useConfirm } from './ConfirmProvider';
 
@@ -345,12 +345,10 @@ function GroupTree({
   store: ReturnType<typeof useStore>;
 }) {
   const siblings = groups.filter((g) => (g.parentGroupId ?? null) === parentId);
-  const hasFinePointer = useHasFinePointer();
   const reorder = useReorderable<GroupT>({
     items: siblings,
     onReorder: (orderedIds) => store.reorderGroups(orderedIds),
     mimeType: 'application/x-docigo-group',
-    enabled: hasFinePointer,
   });
 
   if (siblings.length === 0) return null;

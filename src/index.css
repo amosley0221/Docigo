@@ -92,6 +92,15 @@ body,
   display: none;
 }
 
+/* Reorderable rows (locations, groups). Suppress iOS's long-press
+ * text-selection callout so the long-press-to-drag gesture isn't
+ * interrupted by the system "Copy / Look Up" sheet. */
+[data-reorder-id] {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
 @layer components {
   .glass {
     background: linear-gradient(

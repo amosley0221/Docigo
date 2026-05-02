@@ -22,12 +22,3 @@ export function useMediaQuery(query: string): boolean {
 export function useIsMobile(): boolean {
   return useMediaQuery('(max-width: 767px)');
 }
-
-/**
- * True on devices with a precise pointing device (mouse, trackpad,
- * stylus). False on touch-primary devices like phones / iPads where
- * HTML5 drag-and-drop interferes with tap navigation.
- */
-export function useHasFinePointer(): boolean {
-  return useMediaQuery('(hover: hover) and (pointer: fine)');
-}
