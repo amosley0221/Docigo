@@ -63,7 +63,7 @@ export function AssignModal({
     const initialLoc = store.activeLocationId ?? store.locations[0]?.id ?? '';
     setLocationId(initialLoc);
     const firstGroup = initialLoc
-      ? store.groupsInLocation(initialLoc)[0]?.id ?? ''
+      ? store.groups.find((g) => g.locationId === initialLoc)?.id ?? ''
       : '';
     setGroupId(firstGroup);
     setCreatingGroup(false);
@@ -72,14 +72,17 @@ export function AssignModal({
     setBusy(false);
   }, [open, store]);
 
+  // When the user switches the location, keep the group selection valid.
+  // Use the same `groups` list shown in the picker (top-level + nested)
+  // so we don't accidentally flip into "create new group" mode just
+  // because there's no top-level group with a matching id.
   useEffect(() => {
     if (!locationId) return;
-    const list = store.groupsInLocation(locationId);
-    if (!list.find((g) => g.id === groupId)) {
-      setGroupId(list[0]?.id ?? '');
-      setCreatingGroup(list.length === 0);
+    if (!groups.find((g) => g.id === groupId)) {
+      setGroupId(groups[0]?.id ?? '');
+      setCreatingGroup(groups.length === 0);
     }
-  }, [locationId, store, groupId]);
+  }, [locationId, groups, groupId]);
 
   if (!pending) return null;
 
@@ -226,19 +229,28 @@ export function AssignModal({
             />
           ) : (
             <div className="flex flex-wrap gap-2">
-              {groups.map((g) => (
-                <button
-                  key={g.id}
-                  onClick={() => setGroupId(g.id)}
-                  className={`rounded-full border px-3 py-1.5 text-sm transition ${
-                    g.id === groupId
-                      ? 'border-accent-500 bg-accent-500/15 text-white'
-                      : 'border-white/10 bg-white/[0.02] text-ink-200 hover:border-white/20'
-                  }`}
-                >
-                  {g.name}
-                </button>
-              ))}
+              {groups.map((g) => {
+                const path = ancestorPath(g, groups);
+                return (
+                  <button
+                    key={g.id}
+                    onClick={() => setGroupId(g.id)}
+                    className={`rounded-full border px-3 py-1.5 text-left text-sm transition ${
+                      g.id === groupId
+                        ? 'border-accent-500 bg-accent-500/15 text-white'
+                        : 'border-white/10 bg-white/[0.02] text-ink-200 hover:border-white/20'
+                    }`}
+                    title={[...path, g.name].join(' › ')}
+                  >
+                    {path.length > 0 && (
+                      <span className="mr-1 text-[10px] uppercase tracking-wider text-ink-500">
+                        {path.join(' › ')} ›
+                      </span>
+                    )}
+                    {g.name}
+                  </button>
+                );
+              })}
             </div>
           )}
         </div>
@@ -284,6 +296,21 @@ function iconForKind(k: ItemKind) {
     default:
       return 'folder' as const;
   }
+}
+
+function ancestorPath(
+  group: { id: string; parentGroupId?: string | null; name: string },
+  all: { id: string; parentGroupId?: string | null; name: string }[],
+): string[] {
+  const path: string[] = [];
+  let cursor = group;
+  while (cursor.parentGroupId) {
+    const parent = all.find((g) => g.id === cursor.parentGroupId);
+    if (!parent) break;
+    path.unshift(parent.name);
+    cursor = parent;
+  }
+  return path;
 }
 
 export function inferPendingFromFile(file: File): PendingFile {
