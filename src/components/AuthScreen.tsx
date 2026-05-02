@@ -16,6 +16,7 @@ export function AuthScreen() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
+  const [stay, setStay] = useState(true);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -28,13 +29,14 @@ export function AuthScreen() {
     setBusy(true);
     try {
       if (mode === 'signin') {
-        await signIn(email, password);
+        await signIn(email, password, stay);
       } else {
         const { needsConfirmation } = await signUp(
           email,
           firstName,
           lastName,
           password,
+          stay,
         );
         if (needsConfirmation) {
           setInfo(
@@ -177,6 +179,16 @@ export function AuthScreen() {
                 />
               </div>
             )}
+
+            <label className="flex cursor-pointer items-center gap-2 text-sm text-ink-200 select-none">
+              <input
+                type="checkbox"
+                className="h-4 w-4 rounded border-white/20 bg-white/[0.05] text-accent-500"
+                checked={stay}
+                onChange={(e) => setStay(e.target.checked)}
+              />
+              Keep me signed in on this device
+            </label>
 
             {error && (
               <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-200">

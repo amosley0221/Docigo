@@ -23,6 +23,18 @@ body,
   box-sizing: border-box;
 }
 
+/* iOS Safari zooms in on any text input with font-size < 16px when it
+ * gains focus, and the zoom doesn't reset afterwards. Force 16px on
+ * touch devices so the layout stays put. Desktop keeps the smaller
+ * font sizes set on each control. */
+@media (max-width: 767px) {
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
+
 ::selection {
   background: rgba(67, 97, 255, 0.35);
   color: #fff;

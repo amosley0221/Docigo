@@ -8,7 +8,7 @@ import {
 } from 'react';
 import type { ReactNode } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
-import { supabase } from '../lib/supabase';
+import { setStayPreference, supabase } from '../lib/supabase';
 import { requestPersistence } from '../lib/storage';
 
 export interface AppUser {
@@ -41,12 +41,13 @@ interface AuthState {
 }
 
 interface AuthActions {
-  signIn: (email: string, password: string) => Promise<void>;
+  signIn: (email: string, password: string, stay: boolean) => Promise<void>;
   signUp: (
     email: string,
     firstName: string,
     lastName: string,
     password: string,
+    stay: boolean,
   ) => Promise<{ needsConfirmation: boolean }>;
   signOut: () => Promise<void>;
   updateProfile: (patch: {
@@ -85,20 +86,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const signIn = useCallback<AuthActions['signIn']>(async (email, password) => {
-    const { error } = await supabase.auth.signInWithPassword({
-      email: email.trim(),
-      password,
-    });
-    if (error) throw new Error(error.message);
-  }, []);
+  const signIn = useCallback<AuthActions['signIn']>(
+    async (email, password, stay) => {
+      // Decide where the persisted session should land BEFORE Supabase
+      // writes it via our storage adapter.
+      setStayPreference(stay);
+      const { error } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password,
+      });
+      if (error) throw new Error(error.message);
+    },
+    [],
+  );
 
   const signUp = useCallback<AuthActions['signUp']>(
-    async (email, firstName, lastName, password) => {
+    async (email, firstName, lastName, password, stay) => {
       const trimmedFirst = firstName.trim();
       const trimmedLast = lastName.trim();
       if (!trimmedFirst) throw new Error('First name is required');
       if (!trimmedLast) throw new Error('Last name is required');
+      setStayPreference(stay);
       const { data, error } = await supabase.auth.signUp({
         email: email.trim(),
         password,
