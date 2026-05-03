@@ -92,6 +92,8 @@ interface StoreActions {
   renameItem: (id: string, name: string) => void;
   deleteItem: (id: string) => Promise<void>;
   setActiveItem: (groupId: string, itemId: string) => void;
+  setGroupFavorite: (id: string, on: boolean) => void;
+  setItemFavorite: (id: string, on: boolean) => void;
   itemsInGroup: (groupId: string) => Item[];
   groupsInLocation: (locationId: string) => GroupT[];
   searchTexts: Record<string, string>;
@@ -727,6 +729,28 @@ export function StoreProvider({ children, userId }: StoreProviderProps) {
         activeItemByGroup: { ...s.activeItemByGroup, [groupId]: itemId },
       }));
 
+    const setGroupFavoriteAct = (id: string, on: boolean) => {
+      const ts = on ? Date.now() : undefined;
+      setState((s) => ({
+        ...s,
+        groups: s.groups.map((g) =>
+          g.id === id ? { ...g, favoritedAt: ts } : g,
+        ),
+      }));
+      api.setGroupFavorite(id, on).catch(reportError);
+    };
+
+    const setItemFavoriteAct = (id: string, on: boolean) => {
+      const ts = on ? Date.now() : undefined;
+      setState((s) => ({
+        ...s,
+        items: s.items.map((i) =>
+          i.id === id ? { ...i, favoritedAt: ts } : i,
+        ),
+      }));
+      api.setItemFavorite(id, on).catch(reportError);
+    };
+
     return {
       setActiveLocation,
       goHome,
@@ -749,6 +773,8 @@ export function StoreProvider({ children, userId }: StoreProviderProps) {
       renameItem,
       deleteItem: deleteItemAct,
       setActiveItem,
+      setGroupFavorite: setGroupFavoriteAct,
+      setItemFavorite: setItemFavoriteAct,
       itemsInGroup: (groupId) =>
         state.items
           .filter((i) => i.groupId === groupId)

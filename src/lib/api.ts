@@ -32,6 +32,7 @@ interface GroupRow {
   name: string;
   position: number;
   created_at: string;
+  favorited_at: string | null;
 }
 
 interface ItemRow {
@@ -56,6 +57,7 @@ interface ItemRow {
   position: number;
   created_at: string;
   updated_at: string;
+  favorited_at: string | null;
 }
 
 // ---------- Mappers --------------------------------------------------------
@@ -77,6 +79,7 @@ function groupFromRow(row: GroupRow): GroupT {
     parentGroupId: row.parent_group_id ?? null,
     name: row.name,
     createdAt: Date.parse(row.created_at),
+    favoritedAt: row.favorited_at ? Date.parse(row.favorited_at) : undefined,
   };
 }
 
@@ -88,6 +91,7 @@ function itemFromRow(row: ItemRow): Item {
     name: row.name,
     createdAt: Date.parse(row.created_at),
     updatedAt: Date.parse(row.updated_at),
+    favoritedAt: row.favorited_at ? Date.parse(row.favorited_at) : undefined,
   };
   switch (row.kind as ItemKind) {
     case 'quote':
@@ -239,6 +243,14 @@ export async function reorderGroups(
   }
 }
 
+export async function setGroupFavorite(id: string, on: boolean) {
+  const { error } = await supabase
+    .from('groups')
+    .update({ favorited_at: on ? new Date().toISOString() : null })
+    .eq('id', id);
+  if (error) throw error;
+}
+
 // ---------- Items ----------------------------------------------------------
 
 export async function fetchItems(
@@ -356,6 +368,14 @@ export async function patchItem(
 
 export async function deleteItem(id: string) {
   const { error } = await supabase.from('items').delete().eq('id', id);
+  if (error) throw error;
+}
+
+export async function setItemFavorite(id: string, on: boolean) {
+  const { error } = await supabase
+    .from('items')
+    .update({ favorited_at: on ? new Date().toISOString() : null })
+    .eq('id', id);
   if (error) throw error;
 }
 

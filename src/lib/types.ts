@@ -15,6 +15,8 @@ export interface GroupT {
   parentGroupId?: string | null;
   name: string;
   createdAt: number;
+  /** Epoch ms when the user starred this group. Undefined = not favorited. */
+  favoritedAt?: number;
 }
 
 export type ItemKind =
@@ -44,6 +46,8 @@ export interface BaseItem {
   kind: ItemKind;
   createdAt: number;
   updatedAt: number;
+  /** Epoch ms when the user starred this item. Undefined = not favorited. */
+  favoritedAt?: number;
 }
 
 export interface FileItem extends BaseItem {

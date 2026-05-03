@@ -141,3 +141,17 @@ alter table public.groups
   references public.groups(id) on delete cascade;
 create index if not exists groups_user_parent_idx
   on public.groups (user_id, parent_group_id, position);
+
+-- Favorites: when the column is non-null, the row is starred. We sort by
+-- this timestamp descending so the most recently favorited item is shown
+-- first. Cascade delete on the parent group/item naturally cleans up.
+alter table public.groups
+  add column if not exists favorited_at timestamptz;
+alter table public.items
+  add column if not exists favorited_at timestamptz;
+create index if not exists groups_user_fav_idx
+  on public.groups (user_id, favorited_at)
+  where favorited_at is not null;
+create index if not exists items_user_fav_idx
+  on public.items (user_id, favorited_at)
+  where favorited_at is not null;

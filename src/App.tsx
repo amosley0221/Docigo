@@ -54,7 +54,7 @@ function AuthGate() {
   if (!user) return <AuthScreen />;
   return (
     <StoreProvider key={user.id} userId={user.id}>
-      <FavoritesProvider userId={user.id}>
+      <FavoritesProvider>
         <Shell />
         <MigratePrompt />
       </FavoritesProvider>
