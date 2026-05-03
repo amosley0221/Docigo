@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleDisplayName</key>
+  <string>Docigo</string>
+  <key>CFBundleName</key>
+  <string>Docigo</string>
+  <key>UILaunchScreen</key>
+  <dict>
+    <key>UIColorName</key>
+    <string>LaunchBackground</string>
+  </dict>
+  <key>UISupportedInterfaceOrientations</key>
+  <array>
+    <string>UIInterfaceOrientationPortrait</string>
+    <string>UIInterfaceOrientationLandscapeLeft</string>
+    <string>UIInterfaceOrientationLandscapeRight</string>
+  </array>
+  <key>UISupportedInterfaceOrientations~ipad</key>
+  <array>
+    <string>UIInterfaceOrientationPortrait</string>
+    <string>UIInterfaceOrientationPortraitUpsideDown</string>
+    <string>UIInterfaceOrientationLandscapeLeft</string>
+    <string>UIInterfaceOrientationLandscapeRight</string>
+  </array>
+  <key>NSCameraUsageDescription</key>
+  <string>Docigo uses the camera when you choose to capture an image for upload.</string>
+  <key>NSPhotoLibraryUsageDescription</key>
+  <string>Docigo accesses your photo library when you choose an image to upload.</string>
+  <key>NSPhotoLibraryAddUsageDescription</key>
+  <string>Docigo can save downloaded files to your photos when you choose to.</string>
+  <key>NSMicrophoneUsageDescription</key>
+  <string>Docigo uses the microphone only when you record audio in the browser.</string>
+  <key>NSDocumentsFolderUsageDescription</key>
+  <string>Docigo reads files you select for upload from your Documents folder.</string>
+</dict>
+</plist>
