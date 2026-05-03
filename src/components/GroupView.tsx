@@ -10,6 +10,7 @@ import { getNativeAppAction, runNativeAppAction } from '../lib/nativeApp';
 import type { FileItem } from '../lib/types';
 import { useFavorites } from '../state/favorites';
 import { notifyFavoritesLimit } from './Workspace';
+import { TextFormModal } from './TextFormModal';
 
 function isFileItem(i: Item): i is FileItem {
   return (
@@ -74,6 +75,7 @@ export function GroupView({ group, onCreateSubgroup }: GroupViewProps) {
   const ddRef = useRef<HTMLDivElement>(null);
   const [newMenu, setNewMenu] = useState(false);
   const newMenuRef = useRef<HTMLDivElement>(null);
+  const [textModalOpen, setTextModalOpen] = useState(false);
 
   useEffect(() => {
     if (!dropdown) return;
@@ -102,6 +104,10 @@ export function GroupView({ group, onCreateSubgroup }: GroupViewProps) {
   const createChart = () => {
     store.addChart(target, 'New chart');
     setNewMenu(false);
+  };
+  const createText = () => {
+    setNewMenu(false);
+    setTextModalOpen(true);
   };
   const createSubgroup = () => {
     if (onCreateSubgroup) onCreateSubgroup();
@@ -247,6 +253,20 @@ export function GroupView({ group, onCreateSubgroup }: GroupViewProps) {
                     </button>
                   )}
                   <button
+                    onClick={createText}
+                    className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm text-ink-200 hover:bg-white/5 hover:text-white"
+                  >
+                    <span className="flex h-7 w-7 items-center justify-center rounded-md bg-white/5 text-accent-300">
+                      <Icon name="text" width={14} height={14} />
+                    </span>
+                    <div className="flex-1">
+                      <div className="font-medium text-white">Text</div>
+                      <div className="text-[11px] text-ink-400">
+                        A titled note or quote to keep here.
+                      </div>
+                    </div>
+                  </button>
+                  <button
                     onClick={createChecklist}
                     className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm text-ink-200 hover:bg-white/5 hover:text-white"
                   >
@@ -362,6 +382,17 @@ export function GroupView({ group, onCreateSubgroup }: GroupViewProps) {
           </div>
         </div>
       )}
+
+      <TextFormModal
+        open={textModalOpen}
+        contextLabel={`Inside ${group.name}`}
+        onClose={() => setTextModalOpen(false)}
+        onSubmit={async (title, body, source) => {
+          const created = await store.addQuote(body, target, source, title);
+          store.setActiveItem(group.id, created.id);
+          setTextModalOpen(false);
+        }}
+      />
     </div>
   );
 }

@@ -70,6 +70,7 @@ interface StoreActions {
     text: string,
     target: { locationId: string; groupId: string },
     source?: string,
+    name?: string,
   ) => Promise<QuoteItem>;
   addChecklist: (
     target: { locationId: string; groupId: string },
@@ -542,12 +543,17 @@ export function StoreProvider({ children, userId }: StoreProviderProps) {
       return item;
     };
 
-    const addQuote: StoreActions['addQuote'] = async (text, target, source) => {
+    const addQuote: StoreActions['addQuote'] = async (
+      text,
+      target,
+      source,
+      name,
+    ) => {
       const id = crypto.randomUUID();
       const now = Date.now();
       const item: QuoteItem = {
         id,
-        name: deriveQuoteName(text),
+        name: name?.trim() || deriveQuoteName(text),
         kind: 'quote',
         text,
         source,
