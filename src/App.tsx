@@ -17,6 +17,7 @@ import { ConfirmProvider } from './components/ConfirmProvider';
 import { UploadStatusProvider, useUploadStatus } from './components/UploadStatus';
 import { HighlightProvider } from './components/HighlightContext';
 import { HomePage } from './components/HomePage';
+import { MacInstallBanner } from './components/MacInstallBanner';
 
 export default function App() {
   return (
@@ -24,7 +25,12 @@ export default function App() {
       <ConfirmProvider>
         <UploadStatusProvider>
           <HighlightProvider>
-            <AuthGate />
+            <div className="flex h-full flex-col">
+              <MacInstallBanner />
+              <div className="min-h-0 flex-1">
+                <AuthGate />
+              </div>
+            </div>
           </HighlightProvider>
         </UploadStatusProvider>
       </ConfirmProvider>
