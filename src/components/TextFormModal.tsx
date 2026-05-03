@@ -4,6 +4,8 @@ import { Icon } from './Icon';
 
 interface TextFormModalProps {
   open: boolean;
+  mode?: 'create' | 'edit';
+  initial?: { title: string; body: string; source?: string };
   contextLabel?: string;
   onClose: () => void;
   onSubmit: (title: string, body: string, source?: string) => void;
@@ -11,6 +13,8 @@ interface TextFormModalProps {
 
 export function TextFormModal({
   open,
+  mode = 'create',
+  initial,
   contextLabel,
   onClose,
   onSubmit,
@@ -21,18 +25,34 @@ export function TextFormModal({
 
   useEffect(() => {
     if (!open) return;
-    setTitle('');
-    setBody('');
-    setSource('');
-  }, [open]);
+    if (mode === 'edit' && initial) {
+      setTitle(initial.title);
+      setBody(initial.body);
+      setSource(initial.source ?? '');
+    } else {
+      setTitle('');
+      setBody('');
+      setSource('');
+    }
+  }, [open, mode, initial]);
 
-  const canSubmit = title.trim().length > 0 && body.trim().length > 0;
+  const trimmedTitle = title.trim();
+  const trimmedBody = body.trim();
+  const trimmedSource = source.trim();
+  const filled = trimmedTitle.length > 0 && trimmedBody.length > 0;
+  const unchanged =
+    mode === 'edit' &&
+    initial !== undefined &&
+    trimmedTitle === initial.title.trim() &&
+    trimmedBody === initial.body.trim() &&
+    trimmedSource === (initial.source ?? '').trim();
+  const canSubmit = filled && !unchanged;
 
   return (
     <Modal
       open={open}
       onClose={onClose}
-      title="New text"
+      title={mode === 'create' ? 'New text' : 'Edit text'}
       subtitle={contextLabel}
       width={560}
       footer={
@@ -45,14 +65,14 @@ export function TextFormModal({
             disabled={!canSubmit}
             onClick={() =>
               onSubmit(
-                title.trim(),
-                body.trim(),
-                source.trim() || undefined,
+                trimmedTitle,
+                trimmedBody,
+                trimmedSource.length > 0 ? trimmedSource : undefined,
               )
             }
           >
             <Icon name="check" width={14} height={14} />
-            Add
+            {mode === 'create' ? 'Add' : 'Save'}
           </button>
         </>
       }

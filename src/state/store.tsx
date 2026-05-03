@@ -72,6 +72,10 @@ interface StoreActions {
     source?: string,
     name?: string,
   ) => Promise<QuoteItem>;
+  updateQuote: (
+    id: string,
+    patch: Partial<Pick<QuoteItem, 'name' | 'text' | 'source'>>,
+  ) => void;
   addChecklist: (
     target: { locationId: string; groupId: string },
     name?: string,
@@ -583,6 +587,24 @@ export function StoreProvider({ children, userId }: StoreProviderProps) {
       return item;
     };
 
+    const updateQuoteAct: StoreActions['updateQuote'] = (id, patch) => {
+      setState((s) => ({
+        ...s,
+        items: s.items.map((i) =>
+          i.id === id && i.kind === 'quote'
+            ? { ...i, ...patch, updatedAt: Date.now() }
+            : i,
+        ),
+      }));
+      api
+        .patchItem(id, {
+          name: patch.name,
+          quoteText: patch.text,
+          quoteSource: patch.source,
+        })
+        .catch(reportError);
+    };
+
     const addChecklist: StoreActions['addChecklist'] = async (target, name) => {
       const id = crypto.randomUUID();
       const now = Date.now();
@@ -772,6 +794,7 @@ export function StoreProvider({ children, userId }: StoreProviderProps) {
       setActiveGroup,
       addFile,
       addQuote,
+      updateQuote: updateQuoteAct,
       addChecklist,
       updateChecklist,
       addChart,

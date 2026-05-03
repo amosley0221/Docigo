@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from '../state/store';
-import type { GroupT, Item, ItemKind } from '../lib/types';
+import type { GroupT, Item, ItemKind, QuoteItem } from '../lib/types';
 import { Icon, type IconName } from './Icon';
 import { FileViewer } from './FileViewer';
 import { humanSize } from '../lib/files';
@@ -76,6 +76,7 @@ export function GroupView({ group, onCreateSubgroup }: GroupViewProps) {
   const [newMenu, setNewMenu] = useState(false);
   const newMenuRef = useRef<HTMLDivElement>(null);
   const [textModalOpen, setTextModalOpen] = useState(false);
+  const [editingQuote, setEditingQuote] = useState<QuoteItem | null>(null);
 
   useEffect(() => {
     if (!dropdown) return;
@@ -322,6 +323,16 @@ export function GroupView({ group, onCreateSubgroup }: GroupViewProps) {
                 </button>
               );
             })()}
+          {active && active.kind === 'quote' && (
+            <button
+              className="flex items-center gap-1.5 rounded-md border border-white/10 bg-white/[0.03] px-2 py-1 text-xs text-ink-200 transition hover:bg-white/[0.07]"
+              onClick={() => setEditingQuote(active)}
+              title="Edit this text"
+            >
+              <Icon name="edit" width={13} height={13} />
+              <span className="hidden md:inline">Edit</span>
+            </button>
+          )}
           {active && isFileItem(active) && (
             <button
               className="flex items-center gap-1.5 rounded-md border border-white/10 bg-white/[0.03] px-2 py-1 text-xs text-ink-200 transition hover:bg-white/[0.07]"
@@ -385,12 +396,38 @@ export function GroupView({ group, onCreateSubgroup }: GroupViewProps) {
 
       <TextFormModal
         open={textModalOpen}
+        mode="create"
         contextLabel={`Inside ${group.name}`}
         onClose={() => setTextModalOpen(false)}
         onSubmit={async (title, body, source) => {
           const created = await store.addQuote(body, target, source, title);
           store.setActiveItem(group.id, created.id);
           setTextModalOpen(false);
+        }}
+      />
+
+      <TextFormModal
+        open={!!editingQuote}
+        mode="edit"
+        initial={
+          editingQuote
+            ? {
+                title: editingQuote.name,
+                body: editingQuote.text,
+                source: editingQuote.source,
+              }
+            : undefined
+        }
+        contextLabel={`Inside ${group.name}`}
+        onClose={() => setEditingQuote(null)}
+        onSubmit={(title, body, source) => {
+          if (!editingQuote) return;
+          store.updateQuote(editingQuote.id, {
+            name: title,
+            text: body,
+            source: source ?? '',
+          });
+          setEditingQuote(null);
         }}
       />
     </div>
