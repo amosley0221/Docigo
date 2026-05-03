@@ -204,7 +204,12 @@ export function Sidebar({ collapsed, onToggle, onCollapse }: SidebarProps) {
                     />
                   )}
                   <span
-                    className="flex h-9 w-3 cursor-grab items-center justify-center text-ink-500 opacity-0 group-hover:opacity-100 active:cursor-grabbing"
+                    {...locReorder.handle(loc.id)}
+                    className={`flex h-9 cursor-grab items-center justify-center text-ink-500 active:cursor-grabbing ${
+                      locReorder.needsHandle
+                        ? 'w-7 px-1.5 text-ink-300'
+                        : 'w-3 opacity-0 group-hover:opacity-100'
+                    }`}
                     title="Drag to reorder"
                     aria-hidden
                   >

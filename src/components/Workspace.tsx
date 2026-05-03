@@ -375,6 +375,8 @@ function GroupTree({
               isActive={isActive}
               itemCount={itemCount}
               dragBind={reorder.bind(g.id)}
+              dragHandle={reorder.handle(g.id)}
+              showHandle={reorder.needsHandle}
               isDragging={isDragging}
               dragOver={dragOver}
               onToggle={() =>
@@ -418,6 +420,8 @@ function GroupTreeRow({
   isActive,
   itemCount,
   dragBind,
+  dragHandle,
+  showHandle,
   isDragging,
   dragOver,
   onToggle,
@@ -433,6 +437,8 @@ function GroupTreeRow({
   isActive: boolean;
   itemCount: number;
   dragBind: React.HTMLAttributes<HTMLElement> & { draggable?: boolean };
+  dragHandle: React.HTMLAttributes<HTMLElement> & { hidden?: boolean };
+  showHandle: boolean;
   isDragging: boolean;
   dragOver: DragOverState | null;
   onToggle: () => void;
@@ -460,6 +466,16 @@ function GroupTreeRow({
             indicator === 'before' ? 'top-0' : 'bottom-0'
           }`}
         />
+      )}
+      {showHandle && (
+        <span
+          {...dragHandle}
+          className="flex h-7 w-5 shrink-0 cursor-grab items-center justify-center text-ink-500 active:cursor-grabbing"
+          title="Drag to reorder"
+          aria-label="Drag to reorder"
+        >
+          ⋮⋮
+        </span>
       )}
       <button
         onClick={(e) => {

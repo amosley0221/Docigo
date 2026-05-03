@@ -23,10 +23,6 @@ export function reorderIds(
   return without;
 }
 
-/**
- * Decide whether the cursor is in the top or bottom half of the row,
- * which determines the drop indicator position (before vs after).
- */
 export function dropPositionFromEvent(
   e: { clientY: number },
   el: HTMLElement,
@@ -45,18 +41,24 @@ interface DragHandlersOptions<T extends { id: string }> {
   enabled?: boolean;
 }
 
-const LONG_PRESS_MS = 380;
-const TAP_SLOP_PX = 10;
+const TAP_SLOP_PX = 6;
 
 /**
  * Reorderable list of `{ id }` items.
  *
- * - Mouse-equipped devices use HTML5 drag-and-drop (lightweight, no
- *   long-press required).
- * - Devices with any coarse pointer (phones, iPads, touch laptops)
- *   use Pointer Events with a long-press-to-drag gesture so the
- *   first tap fires onClick normally and a deliberate hold starts a
- *   reorder. Vibration is requested on long-press where supported.
+ * Two surfaces:
+ *  - `bind(id)` — attach to the row container. On mouse-only devices
+ *    (no touchscreen) the whole row is HTML5-draggable for the
+ *    familiar click-and-drag flow. On touch devices the row is
+ *    plain content so taps fire onClick on the first interaction;
+ *    only the handle below moves it.
+ *  - `handle(id)` — attach to a small drag handle inside the row.
+ *    On touch devices the handle owns Pointer Events: pressing the
+ *    handle and moving starts a drag; releasing commits or cancels.
+ *    On mouse-only devices `handle` returns `hidden: true` so callers
+ *    can choose not to render the handle at all.
+ *
+ * The visible accent indicator and `draggingId` work for both paths.
  */
 export function useReorderable<T extends { id: string }>({
   items,
@@ -67,8 +69,6 @@ export function useReorderable<T extends { id: string }>({
   const isTouchDevice = useMediaQuery('(any-pointer: coarse)');
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [overState, setOverState] = useState<DragOverState | null>(null);
-  // Mirror overState in a ref so the touch pointerup handler can read
-  // the latest value without re-binding.
   const overStateRef = useRef<DragOverState | null>(null);
 
   // ---- HTML5 DnD (mouse) -------------------------------------------------
@@ -113,56 +113,47 @@ export function useReorderable<T extends { id: string }>({
 
   const onDragEnd = () => cleanup();
 
-  // ---- Pointer events (touch) --------------------------------------------
+  // ---- Pointer events on a dedicated handle (touch) ----------------------
 
-  const touchRef = useRef<{
+  const handleRef = useRef<{
     id: string | null;
     x: number;
     y: number;
-    timer: number;
     active: boolean;
-  }>({ id: null, x: 0, y: 0, timer: 0, active: false });
+  }>({ id: null, x: 0, y: 0, active: false });
 
-  const onPointerDown = (e: React.PointerEvent<HTMLElement>, id: string) => {
-    if (e.pointerType === 'mouse') return; // mouse uses HTML5 DnD
-    const t = touchRef.current;
-    if (t.timer) window.clearTimeout(t.timer);
+  const onHandlePointerDown = (
+    e: React.PointerEvent<HTMLElement>,
+    id: string,
+  ) => {
+    if (e.pointerType === 'mouse') return; // mouse drags via the row
+    const t = handleRef.current;
     t.id = id;
     t.x = e.clientX;
     t.y = e.clientY;
     t.active = false;
-    const target = e.currentTarget;
-    const pointerId = e.pointerId;
-    t.timer = window.setTimeout(() => {
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {
+      // ignore
+    }
+  };
+
+  const onHandlePointerMove = (e: React.PointerEvent<HTMLElement>) => {
+    if (e.pointerType === 'mouse') return;
+    const t = handleRef.current;
+    if (!t.id) return;
+    const dx = e.clientX - t.x;
+    const dy = e.clientY - t.y;
+    if (!t.active) {
+      if (Math.hypot(dx, dy) < TAP_SLOP_PX) return;
       t.active = true;
+      setDraggingId(t.id);
       try {
-        target.setPointerCapture(pointerId);
-      } catch {
-        // ignore — best-effort
-      }
-      setDraggingId(id);
-      try {
-        navigator.vibrate?.(30);
+        navigator.vibrate?.(20);
       } catch {
         // ignore
       }
-    }, LONG_PRESS_MS);
-  };
-
-  const onPointerMove = (e: React.PointerEvent<HTMLElement>) => {
-    if (e.pointerType === 'mouse') return;
-    const t = touchRef.current;
-    if (!t.id) return;
-    if (!t.active) {
-      // User started scrolling / panning before long-press fired —
-      // cancel and let the page scroll normally.
-      const dx = e.clientX - t.x;
-      const dy = e.clientY - t.y;
-      if (Math.hypot(dx, dy) > TAP_SLOP_PX) {
-        window.clearTimeout(t.timer);
-        t.id = null;
-      }
-      return;
     }
     e.preventDefault();
     const el = document.elementFromPoint(e.clientX, e.clientY);
@@ -174,7 +165,9 @@ export function useReorderable<T extends { id: string }>({
       const pos: DropPosition =
         e.clientY < rect.top + rect.height / 2 ? 'before' : 'after';
       setOverState((prev) =>
-        prev?.id === targetId && prev.pos === pos ? prev : { id: targetId, pos },
+        prev?.id === targetId && prev.pos === pos
+          ? prev
+          : { id: targetId, pos },
       );
       overStateRef.current = { id: targetId, pos };
     } else {
@@ -183,10 +176,9 @@ export function useReorderable<T extends { id: string }>({
     }
   };
 
-  const onPointerUp = (e: React.PointerEvent<HTMLElement>) => {
+  const onHandlePointerUp = (e: React.PointerEvent<HTMLElement>) => {
     if (e.pointerType === 'mouse') return;
-    const t = touchRef.current;
-    if (t.timer) window.clearTimeout(t.timer);
+    const t = handleRef.current;
     if (t.active) {
       const fromId = t.id;
       const ov = overStateRef.current;
@@ -203,9 +195,8 @@ export function useReorderable<T extends { id: string }>({
     setOverState(null);
   };
 
-  const onPointerCancel = () => {
-    const t = touchRef.current;
-    if (t.timer) window.clearTimeout(t.timer);
+  const onHandlePointerCancel = () => {
+    const t = handleRef.current;
     t.id = null;
     t.active = false;
     overStateRef.current = null;
@@ -219,31 +210,27 @@ export function useReorderable<T extends { id: string }>({
     overStateRef.current = null;
   }
 
-  type Bind = React.HTMLAttributes<HTMLElement> & {
+  type RowBind = React.HTMLAttributes<HTMLElement> & {
     draggable?: boolean;
     'data-reorder-id'?: string;
+  };
+
+  type HandleBind = React.HTMLAttributes<HTMLElement> & {
+    /** True when callers should skip rendering the handle. */
+    hidden?: boolean;
   };
 
   return {
     draggingId,
     overState,
-    bind: (id: string): Bind => {
-      if (!enabled) {
-        return { draggable: false, 'data-reorder-id': id };
-      }
+    /** Whether the active device should render a drag handle. */
+    needsHandle: enabled && isTouchDevice,
+    bind: (id: string): RowBind => {
+      if (!enabled) return { 'data-reorder-id': id, draggable: false };
       if (isTouchDevice) {
-        // Touch: long-press to start drag. Plain taps fire onClick on
-        // child buttons normally because `draggable` is false and we
-        // don't preventDefault on initial pointerdown / pointermove.
-        return {
-          'data-reorder-id': id,
-          draggable: false,
-          onPointerDown: (e: React.PointerEvent<HTMLElement>) =>
-            onPointerDown(e, id),
-          onPointerMove,
-          onPointerUp,
-          onPointerCancel,
-        };
+        // Row itself is plain on touch — taps go through to inner
+        // buttons. Drag is only via the handle.
+        return { 'data-reorder-id': id, draggable: false };
       }
       return {
         'data-reorder-id': id,
@@ -253,6 +240,16 @@ export function useReorderable<T extends { id: string }>({
         onDragLeave: (e: React.DragEvent<HTMLElement>) => onDragLeave(e, id),
         onDrop: (e: React.DragEvent<HTMLElement>) => onDrop(e, id),
         onDragEnd,
+      };
+    },
+    handle: (id: string): HandleBind => {
+      if (!enabled || !isTouchDevice) return { hidden: true };
+      return {
+        onPointerDown: (e: React.PointerEvent<HTMLElement>) =>
+          onHandlePointerDown(e, id),
+        onPointerMove: onHandlePointerMove,
+        onPointerUp: onHandlePointerUp,
+        onPointerCancel: onHandlePointerCancel,
       };
     },
   };
