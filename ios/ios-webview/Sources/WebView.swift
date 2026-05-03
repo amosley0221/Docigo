@@ -101,19 +101,37 @@ struct WebView: UIViewRepresentable {
             decisionHandler(.allow)
         }
 
-        // Handle target="_blank" anchors — Docigo opens PDFs in a new tab,
-        // and the share sheet uses noopener.
+        // Handle target="_blank" anchors. Internal navigations (Docigo's own
+        // origin and Supabase signed-storage URLs used to preview uploaded
+        // PDFs / images) keep loading inside the WebView so the file renders
+        // natively. Everything else is treated as an external link and is
+        // handed off to the user's default browser.
         func webView(
             _ webView: WKWebView,
             createWebViewWith configuration: WKWebViewConfiguration,
             for navigationAction: WKNavigationAction,
             windowFeatures: WKWindowFeatures
         ) -> WKWebView? {
-            if navigationAction.targetFrame == nil,
-               let url = navigationAction.request.url {
+            guard let url = navigationAction.request.url else { return nil }
+            if shouldLoadInApp(url, webView: webView) {
                 webView.load(URLRequest(url: url))
+            } else {
+                UIApplication.shared.open(url)
             }
             return nil
+        }
+
+        private func shouldLoadInApp(_ url: URL, webView: WKWebView) -> Bool {
+            guard let host = url.host?.lowercased() else { return true }
+            if let appHost = webView.url?.host?.lowercased(), host == appHost {
+                return true
+            }
+            // Supabase storage URLs are how the web app opens uploaded files
+            // (PDF preview, image, etc) — keep these in-app.
+            if host == "supabase.co" || host.hasSuffix(".supabase.co") {
+                return true
+            }
+            return false
         }
 
         // Camera + microphone permission grants (iOS 15+).
