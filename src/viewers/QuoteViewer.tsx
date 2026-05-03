@@ -1,4 +1,5 @@
-import { useEffect } from 'react';
+import { Fragment, useEffect } from 'react';
+import type { ReactNode } from 'react';
 import type { QuoteItem } from '../lib/types';
 import { useHighlight, useHighlightFor } from '../components/HighlightContext';
 import { Icon } from '../components/Icon';
@@ -23,16 +24,14 @@ export function QuoteViewer({ item }: { item: QuoteItem }) {
           Text
         </header>
         <h2 className="mt-2 font-display text-2xl font-bold leading-tight tracking-tight text-white md:text-3xl">
-          {highlight
-            ? renderHighlighted(item.name, highlight)
-            : item.name}
+          {highlight ? renderHighlighted(item.name, highlight) : item.name}
         </h2>
         <div className="mt-5 whitespace-pre-wrap break-words font-serif text-[1.05rem] leading-relaxed text-ink-100 md:text-lg">
-          {highlight ? renderHighlighted(item.text, highlight) : item.text}
+          {linkify(item.text, highlight)}
         </div>
         {item.source && (
-          <div className="mt-5 border-t border-white/5 pt-4 text-sm text-ink-300">
-            — {item.source}
+          <div className="mt-5 break-words border-t border-white/5 pt-4 text-sm text-ink-300">
+            — {linkify(item.source, highlight)}
           </div>
         )}
         <div className="mt-5 text-xs text-ink-500">
@@ -43,11 +42,71 @@ export function QuoteViewer({ item }: { item: QuoteItem }) {
   );
 }
 
+/** Splits text into URL / non-URL spans, wraps URLs in anchor tags that open
+ *  in a new tab, and runs the search highlighter on every span so matches
+ *  remain visible inside or outside a link. */
+function linkify(text: string, highlight?: string): ReactNode {
+  const urlRe = /\bhttps?:\/\/[^\s<>"'`]+/gi;
+  const trailingPunct = /[.,;:!?)\]]+$/;
+  const out: ReactNode[] = [];
+  let last = 0;
+  let key = 0;
+  let match: RegExpExecArray | null;
+  while ((match = urlRe.exec(text)) !== null) {
+    let url = match[0];
+    let trail = '';
+    const tp = url.match(trailingPunct);
+    if (tp) {
+      trail = tp[0];
+      url = url.slice(0, -trail.length);
+    }
+    if (match.index > last) {
+      const seg = text.slice(last, match.index);
+      out.push(
+        <Fragment key={key++}>
+          {highlight ? renderHighlighted(seg, highlight) : seg}
+        </Fragment>,
+      );
+    }
+    out.push(
+      <a
+        key={key++}
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="break-all text-accent-300 underline decoration-accent-400/40 underline-offset-2 transition hover:text-accent-200 hover:decoration-accent-300"
+      >
+        {highlight ? renderHighlighted(url, highlight) : url}
+      </a>,
+    );
+    if (trail) {
+      out.push(
+        <Fragment key={key++}>
+          {highlight ? renderHighlighted(trail, highlight) : trail}
+        </Fragment>,
+      );
+    }
+    last = match.index + match[0].length;
+  }
+  if (last === 0) {
+    return highlight ? renderHighlighted(text, highlight) : text;
+  }
+  if (last < text.length) {
+    const seg = text.slice(last);
+    out.push(
+      <Fragment key={key++}>
+        {highlight ? renderHighlighted(seg, highlight) : seg}
+      </Fragment>,
+    );
+  }
+  return out;
+}
+
 function renderHighlighted(text: string, query: string) {
   const q = query.toLowerCase();
   if (!q) return text;
   const lower = text.toLowerCase();
-  const out: React.ReactNode[] = [];
+  const out: ReactNode[] = [];
   let i = 0;
   while (i < text.length) {
     const next = lower.indexOf(q, i);
