@@ -4,7 +4,8 @@ import { useAuth } from '../state/auth';
 import { useUploader } from './UploaderContext';
 import { Icon, type IconName } from './Icon';
 import { humanSize } from '../lib/files';
-import type { Item, ItemKind, LocationKind } from '../lib/types';
+import type { GroupT, Item, ItemKind, LocationKind } from '../lib/types';
+import { useFavorites } from '../state/favorites';
 
 const ICON_FOR_KIND: Record<ItemKind, IconName> = {
   spreadsheet: 'sheet',
@@ -29,7 +30,40 @@ const KIND_ICON: Record<LocationKind, IconName> = {
 export function HomePage() {
   const store = useStore();
   const { user } = useAuth();
+  const favorites = useFavorites();
   const { pickFiles } = useUploader();
+
+  const resolvedFavorites = useMemo(() => {
+    const groupById = new Map(store.groups.map((g) => [g.id, g]));
+    const itemById = new Map(store.items.map((i) => [i.id, i]));
+    return favorites.favorites
+      .map((f) => {
+        if (f.kind === 'group') {
+          const g = groupById.get(f.id);
+          return g ? ({ kind: 'group' as const, group: g } as const) : null;
+        }
+        const item = itemById.get(f.id);
+        return item ? ({ kind: 'item' as const, item } as const) : null;
+      })
+      .filter(
+        (
+          x,
+        ): x is
+          | { kind: 'group'; group: GroupT }
+          | { kind: 'item'; item: Item } => x !== null,
+      );
+  }, [favorites.favorites, store.groups, store.items]);
+
+  const openGroup = (g: GroupT) => {
+    store.setActiveLocation(g.locationId);
+    store.setActiveGroup(g.locationId, g.id);
+  };
+
+  const openItem = (item: Item) => {
+    store.setActiveLocation(item.locationId);
+    store.setActiveGroup(item.locationId, item.groupId);
+    store.setActiveItem(item.groupId, item.id);
+  };
 
   const stats = useMemo(() => {
     return {
@@ -77,6 +111,86 @@ export function HomePage() {
         </div>
 
         <DropZone onChooseFiles={pickFiles} />
+
+        {resolvedFavorites.length > 0 && (
+          <section>
+            <div className="mb-2.5 flex items-center justify-between px-1">
+              <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-ink-400">
+                <Icon name="star-filled" width={11} height={11} className="text-amber-300" />
+                Favorites
+              </div>
+              <span className="text-[10px] tabular-nums text-ink-500">
+                {resolvedFavorites.length}/{favorites.max}
+              </span>
+            </div>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              {resolvedFavorites.map((entry) => {
+                if (entry.kind === 'group') {
+                  const g = entry.group;
+                  const loc = store.locations.find((l) => l.id === g.locationId);
+                  const itemCount = store.items.filter(
+                    (i) => i.groupId === g.id,
+                  ).length;
+                  return (
+                    <button
+                      key={`group-${g.id}`}
+                      onClick={() => openGroup(g)}
+                      className="glass group flex items-center gap-3 rounded-xl px-3 py-3 text-left transition hover:bg-white/[0.06]"
+                    >
+                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-amber-300/15 text-amber-200 ring-1 ring-amber-300/30">
+                        <Icon name="folder" width={16} height={16} />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate font-display text-base font-semibold text-white">
+                          {g.name}
+                        </div>
+                        <div className="truncate text-xs text-ink-400">
+                          {loc ? `${loc.name} · ` : ''}
+                          {itemCount} item{itemCount === 1 ? '' : 's'}
+                        </div>
+                      </div>
+                      <Icon
+                        name="chevron-right"
+                        width={14}
+                        height={14}
+                        className="text-ink-500 transition group-hover:text-accent-300"
+                      />
+                    </button>
+                  );
+                }
+                const item = entry.item;
+                const loc = store.locations.find((l) => l.id === item.locationId);
+                const grp = store.groups.find((g) => g.id === item.groupId);
+                return (
+                  <button
+                    key={`item-${item.id}`}
+                    onClick={() => openItem(item)}
+                    className="glass group flex items-center gap-3 rounded-xl px-3 py-3 text-left transition hover:bg-white/[0.06]"
+                  >
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-amber-300/15 text-amber-200 ring-1 ring-amber-300/30">
+                      <Icon name={ICON_FOR_KIND[item.kind]} width={16} height={16} />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate font-display text-base font-semibold text-white">
+                        {item.name}
+                      </div>
+                      <div className="truncate text-xs text-ink-400">
+                        {loc ? `${loc.name}` : ''}
+                        {grp ? ` · ${grp.name}` : ''}
+                      </div>
+                    </div>
+                    <Icon
+                      name="chevron-right"
+                      width={14}
+                      height={14}
+                      className="text-ink-500 transition group-hover:text-accent-300"
+                    />
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        )}
 
         <section>
           <SectionHeader title="Locations" />

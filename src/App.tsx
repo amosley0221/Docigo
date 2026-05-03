@@ -18,6 +18,7 @@ import { UploadStatusProvider, useUploadStatus } from './components/UploadStatus
 import { HighlightProvider } from './components/HighlightContext';
 import { HomePage } from './components/HomePage';
 import { MacInstallBanner } from './components/MacInstallBanner';
+import { FavoritesProvider } from './state/favorites';
 
 export default function App() {
   return (
@@ -53,8 +54,10 @@ function AuthGate() {
   if (!user) return <AuthScreen />;
   return (
     <StoreProvider key={user.id} userId={user.id}>
-      <Shell />
-      <MigratePrompt />
+      <FavoritesProvider userId={user.id}>
+        <Shell />
+        <MigratePrompt />
+      </FavoritesProvider>
     </StoreProvider>
   );
 }

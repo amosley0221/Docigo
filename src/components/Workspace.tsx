@@ -8,17 +8,32 @@ import { useReorderable, type DragOverState } from '../lib/reorder';
 import { useIsMobile } from '../lib/useMediaQuery';
 import { useUploader } from './UploaderContext';
 import { useConfirm } from './ConfirmProvider';
+import { useFavorites } from '../state/favorites';
 
 interface NewGroupTarget {
   /** Null = create a top-level group under the active location. */
   parentGroupId: string | null;
 }
 
+export function notifyFavoritesLimit(max: number) {
+  if (typeof window !== 'undefined') {
+    window.alert(
+      `You can only favorite up to ${max} folders/files. Remove one first.`,
+    );
+  }
+}
+
 export function Workspace() {
   const store = useStore();
+  const favorites = useFavorites();
   const isMobile = useIsMobile();
   const confirm = useConfirm();
   const active = store.locations.find((l) => l.id === store.activeLocationId);
+
+  const onToggleFavoriteGroup = (groupId: string) => {
+    const result = favorites.toggleFavorite('group', groupId);
+    if (result === 'limit') notifyFavoritesLimit(favorites.max);
+  };
 
   const allGroupsInLocation = useMemo(
     () => (active ? store.groups.filter((g) => g.locationId === active.id) : []),
@@ -143,28 +158,50 @@ export function Workspace() {
             {flat.length === 0 && (
               <span className="text-xs text-ink-400">No groups yet.</span>
             )}
-            {flat.map(({ group, depth, hasChildren }) => {
+            {flat.map(({ group, depth }) => {
               const isActive = group.id === currentGroupId;
               const count = store.itemsInGroup(group.id).length;
+              const isFav = favorites.isFavorite('group', group.id);
               return (
-                <button
+                <span
                   key={group.id}
-                  onClick={() => setActiveGroupId(group.id)}
-                  className={`flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition ${
+                  className={`flex shrink-0 items-center gap-1 rounded-full border pl-2.5 pr-1 py-1 text-xs transition ${
                     isActive
                       ? 'border-accent-500/60 bg-accent-500/15 text-white'
                       : 'border-white/10 bg-white/[0.02] text-ink-200'
                   }`}
                   style={{ marginLeft: depth * 6 }}
                 >
-                  <Icon
-                    name={hasChildren ? 'folder' : 'folder'}
-                    width={11}
-                    height={11}
-                  />
-                  <span className="max-w-[140px] truncate">{group.name}</span>
-                  <span className="text-[10px] text-ink-400">{count}</span>
-                </button>
+                  <button
+                    onClick={() => setActiveGroupId(group.id)}
+                    className="flex items-center gap-1.5"
+                  >
+                    <Icon name="folder" width={11} height={11} />
+                    <span className="max-w-[140px] truncate">{group.name}</span>
+                    <span className="text-[10px] text-ink-400">{count}</span>
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onToggleFavoriteGroup(group.id);
+                    }}
+                    className={`rounded-full p-0.5 transition ${
+                      isFav
+                        ? 'text-amber-300'
+                        : 'text-ink-500 hover:text-amber-300'
+                    }`}
+                    aria-label={
+                      isFav ? `Unfavorite ${group.name}` : `Favorite ${group.name}`
+                    }
+                    title={isFav ? 'Unfavorite' : 'Favorite'}
+                  >
+                    <Icon
+                      name={isFav ? 'star-filled' : 'star'}
+                      width={11}
+                      height={11}
+                    />
+                  </button>
+                </span>
               );
             })}
           </div>
@@ -251,6 +288,8 @@ export function Workspace() {
             onAddChild={(parentId) => setNewGroup({ parentGroupId: parentId })}
             onEdit={(g) => setEditingGroup(g)}
             onDelete={onDeleteGroup}
+            onToggleFavorite={onToggleFavoriteGroup}
+            isFavoriteGroup={(id) => favorites.isFavorite('group', id)}
             store={store}
           />
         </div>
@@ -330,6 +369,8 @@ function GroupTree({
   onAddChild,
   onEdit,
   onDelete,
+  onToggleFavorite,
+  isFavoriteGroup,
   store,
 }: {
   parentId: string | null;
@@ -342,6 +383,8 @@ function GroupTree({
   onAddChild: (parentId: string) => void;
   onEdit: (g: GroupT) => void;
   onDelete: (g: GroupT) => void;
+  onToggleFavorite: (groupId: string) => void;
+  isFavoriteGroup: (groupId: string) => boolean;
   store: ReturnType<typeof useStore>;
 }) {
   const siblings = groups.filter((g) => (g.parentGroupId ?? null) === parentId);
@@ -373,6 +416,7 @@ function GroupTree({
               hasChildren={childCount > 0}
               isExpanded={isExpanded}
               isActive={isActive}
+              isFavorite={isFavoriteGroup(g.id)}
               itemCount={itemCount}
               dragBind={reorder.bind(g.id)}
               dragHandle={reorder.handle(g.id)}
@@ -389,6 +433,7 @@ function GroupTree({
               onAddChild={() => onAddChild(g.id)}
               onEdit={() => onEdit(g)}
               onDelete={() => onDelete(g)}
+              onToggleFavorite={() => onToggleFavorite(g.id)}
             />
             {isExpanded && childCount > 0 && (
               <GroupTree
@@ -402,6 +447,8 @@ function GroupTree({
                 onAddChild={onAddChild}
                 onEdit={onEdit}
                 onDelete={onDelete}
+                onToggleFavorite={onToggleFavorite}
+                isFavoriteGroup={isFavoriteGroup}
                 store={store}
               />
             )}
@@ -418,6 +465,7 @@ function GroupTreeRow({
   hasChildren,
   isExpanded,
   isActive,
+  isFavorite,
   itemCount,
   dragBind,
   dragHandle,
@@ -429,12 +477,14 @@ function GroupTreeRow({
   onAddChild,
   onEdit,
   onDelete,
+  onToggleFavorite,
 }: {
   group: GroupT;
   depth: number;
   hasChildren: boolean;
   isExpanded: boolean;
   isActive: boolean;
+  isFavorite: boolean;
   itemCount: number;
   dragBind: React.HTMLAttributes<HTMLElement> & { draggable?: boolean };
   dragHandle: React.HTMLAttributes<HTMLElement> & { hidden?: boolean };
@@ -446,6 +496,7 @@ function GroupTreeRow({
   onAddChild: () => void;
   onEdit: () => void;
   onDelete: () => void;
+  onToggleFavorite: () => void;
 }) {
   const indicator = dragOver && !isDragging ? dragOver.pos : null;
   return (
@@ -504,6 +555,27 @@ function GroupTreeRow({
         <Icon name="folder" width={13} height={13} className="text-ink-400" />
         <span className="flex-1 truncate">{group.name}</span>
         <span className="text-xs text-ink-400">{itemCount}</span>
+      </button>
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          onToggleFavorite();
+        }}
+        className={`rounded-md p-1 transition hover:bg-white/10 ${
+          isFavorite
+            ? 'text-amber-300 opacity-100'
+            : 'text-ink-400 opacity-0 hover:text-amber-300 group-hover:opacity-100'
+        }`}
+        title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+        aria-label={
+          isFavorite ? `Unfavorite ${group.name}` : `Favorite ${group.name}`
+        }
+      >
+        <Icon
+          name={isFavorite ? 'star-filled' : 'star'}
+          width={12}
+          height={12}
+        />
       </button>
       <button
         onClick={(e) => {

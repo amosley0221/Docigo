@@ -1,12 +1,18 @@
 import { useMemo, useState } from 'react';
 import { Icon, type IconName } from './Icon';
 import { useStore } from '../state/store';
-import type { LocationKind, LocationT } from '../lib/types';
+import type {
+  GroupT,
+  Item,
+  ItemKind,
+  LocationKind,
+  LocationT,
+} from '../lib/types';
 import { LocationFormModal } from './LocationFormModal';
-import { GroupFormModal } from './GroupFormModal';
 import { useReorderable } from '../lib/reorder';
 import { useIsMobile } from '../lib/useMediaQuery';
 import { useConfirm } from './ConfirmProvider';
+import { useFavorites } from '../state/favorites';
 
 const KIND_ICON: Record<LocationKind, IconName> = {
   work: 'briefcase',
@@ -24,6 +30,18 @@ const KIND_LABEL: Record<LocationKind, string> = {
   custom: 'Other',
 };
 
+const ITEM_KIND_ICON: Record<ItemKind, IconName> = {
+  spreadsheet: 'sheet',
+  document: 'doc',
+  pdf: 'pdf',
+  image: 'image',
+  text: 'text',
+  quote: 'quote',
+  checklist: 'checklist',
+  chart: 'chart-bar',
+  unknown: 'folder',
+};
+
 interface SidebarProps {
   collapsed: boolean;
   onToggle: () => void;
@@ -32,13 +50,11 @@ interface SidebarProps {
 
 export function Sidebar({ collapsed, onToggle, onCollapse }: SidebarProps) {
   const store = useStore();
+  const favorites = useFavorites();
   const isMobile = useIsMobile();
   const confirm = useConfirm();
   const [openCreate, setOpenCreate] = useState(false);
   const [editing, setEditing] = useState<LocationT | null>(null);
-  const [openGroup, setOpenGroup] = useState(false);
-
-  const active = store.locations.find((l) => l.id === store.activeLocationId) ?? null;
 
   const locReorder = useReorderable({
     items: store.locations,
@@ -46,10 +62,39 @@ export function Sidebar({ collapsed, onToggle, onCollapse }: SidebarProps) {
     mimeType: 'application/x-docigo-location',
   });
 
-  const groups = useMemo(
-    () => (active ? store.groupsInLocation(active.id) : []),
-    [active, store],
-  );
+  const resolvedFavorites = useMemo(() => {
+    const groupById = new Map(store.groups.map((g) => [g.id, g]));
+    const itemById = new Map(store.items.map((i) => [i.id, i]));
+    return favorites.favorites
+      .map((f) => {
+        if (f.kind === 'group') {
+          const g = groupById.get(f.id);
+          return g ? ({ kind: 'group' as const, group: g } as const) : null;
+        }
+        const item = itemById.get(f.id);
+        return item ? ({ kind: 'item' as const, item } as const) : null;
+      })
+      .filter(
+        (
+          x,
+        ): x is
+          | { kind: 'group'; group: GroupT }
+          | { kind: 'item'; item: Item } => x !== null,
+      );
+  }, [favorites.favorites, store.groups, store.items]);
+
+  const openGroup = (g: GroupT) => {
+    store.setActiveLocation(g.locationId);
+    store.setActiveGroup(g.locationId, g.id);
+    onCollapse();
+  };
+
+  const openItem = (item: Item) => {
+    store.setActiveLocation(item.locationId);
+    store.setActiveGroup(item.locationId, item.groupId);
+    store.setActiveItem(item.groupId, item.id);
+    onCollapse();
+  };
 
   if (collapsed) {
     // On mobile a collapsed sidebar disappears entirely (the top-bar menu
@@ -279,34 +324,89 @@ export function Sidebar({ collapsed, onToggle, onCollapse }: SidebarProps) {
 
         <div className="mt-1 flex-1 overflow-y-auto border-t border-white/5 px-3 pt-3">
           <div className="mb-2 flex items-center justify-between px-1">
-            <div className="text-[11px] font-semibold uppercase tracking-wider text-ink-400">
-              {active ? `Groups in ${active.name}` : 'Groups'}
+            <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-ink-400">
+              <Icon name="star" width={11} height={11} />
+              Favorites
             </div>
-            <button
-              className="rounded-md p-1 text-ink-300 hover:bg-white/10 hover:text-white disabled:opacity-30"
-              onClick={() => setOpenGroup(true)}
-              disabled={!active}
-              title="New group"
-            >
-              <Icon name="plus" width={14} height={14} />
-            </button>
+            <span className="text-[10px] tabular-nums text-ink-500">
+              {favorites.favorites.length}/{favorites.max}
+            </span>
           </div>
           <div className="flex flex-col gap-0.5 pb-3">
-            {groups.length === 0 && (
-              <div className="px-2 py-2 text-xs text-ink-400">
-                No groups yet. Create one or drop a file.
+            {resolvedFavorites.length === 0 && (
+              <div className="px-2 py-2 text-xs leading-snug text-ink-400">
+                Tap the star next to a folder or file to pin it here.
               </div>
             )}
-            {groups.map((g) => {
-              const count = store.items.filter((i) => i.groupId === g.id).length;
+            {resolvedFavorites.map((entry) => {
+              if (entry.kind === 'group') {
+                const g = entry.group;
+                const count = store.items.filter((i) => i.groupId === g.id).length;
+                const loc = store.locations.find((l) => l.id === g.locationId);
+                return (
+                  <div
+                    key={`group-${g.id}`}
+                    className="group/fav flex items-center gap-1 rounded-lg pr-1 text-sm text-ink-200 hover:bg-white/5 hover:text-white"
+                  >
+                    <button
+                      onClick={() => openGroup(g)}
+                      className="flex flex-1 items-center gap-2 px-2.5 py-1.5 text-left"
+                      title={loc ? `${loc.name} · ${g.name}` : g.name}
+                    >
+                      <Icon
+                        name="folder"
+                        width={14}
+                        height={14}
+                        className="shrink-0 text-ink-400"
+                      />
+                      <span className="flex-1 truncate">{g.name}</span>
+                      <span className="text-xs text-ink-400">{count}</span>
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        favorites.toggleFavorite('group', g.id);
+                      }}
+                      className="rounded-md p-1 text-amber-300 transition hover:bg-white/10"
+                      title="Remove from favorites"
+                      aria-label={`Unfavorite ${g.name}`}
+                    >
+                      <Icon name="star-filled" width={13} height={13} />
+                    </button>
+                  </div>
+                );
+              }
+              const item = entry.item;
+              const loc = store.locations.find((l) => l.id === item.locationId);
               return (
                 <div
-                  key={g.id}
-                  className="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm text-ink-200 hover:bg-white/5"
+                  key={`item-${item.id}`}
+                  className="group/fav flex items-center gap-1 rounded-lg pr-1 text-sm text-ink-200 hover:bg-white/5 hover:text-white"
                 >
-                  <Icon name="folder" width={14} height={14} className="text-ink-400" />
-                  <span className="flex-1 truncate">{g.name}</span>
-                  <span className="text-xs text-ink-400">{count}</span>
+                  <button
+                    onClick={() => openItem(item)}
+                    className="flex flex-1 items-center gap-2 px-2.5 py-1.5 text-left"
+                    title={loc ? `${loc.name} · ${item.name}` : item.name}
+                  >
+                    <Icon
+                      name={ITEM_KIND_ICON[item.kind]}
+                      width={14}
+                      height={14}
+                      className="shrink-0 text-ink-400"
+                    />
+                    <span className="flex-1 truncate">{item.name}</span>
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      favorites.toggleFavorite('item', item.id);
+                    }}
+                    className="rounded-md p-1 text-amber-300 transition hover:bg-white/10"
+                    title="Remove from favorites"
+                    aria-label={`Unfavorite ${item.name}`}
+                  >
+                    <Icon name="star-filled" width={13} height={13} />
+                  </button>
                 </div>
               );
             })}
@@ -339,18 +439,6 @@ export function Sidebar({ collapsed, onToggle, onCollapse }: SidebarProps) {
         onSubmit={(value) => {
           if (editing) store.updateLocation(editing.id, value);
           setEditing(null);
-        }}
-      />
-
-      <GroupFormModal
-        open={openGroup}
-        mode="create"
-        contextLabel={active ? `Inside ${active.name}` : undefined}
-        onClose={() => setOpenGroup(false)}
-        onSubmit={(name) => {
-          if (!active) return;
-          store.addGroup(active.id, name);
-          setOpenGroup(false);
         }}
       />
     </>

@@ -8,6 +8,8 @@ import { useUploader } from './UploaderContext';
 import { useConfirm } from './ConfirmProvider';
 import { getNativeAppAction, runNativeAppAction } from '../lib/nativeApp';
 import type { FileItem } from '../lib/types';
+import { useFavorites } from '../state/favorites';
+import { notifyFavoritesLimit } from './Workspace';
 
 function isFileItem(i: Item): i is FileItem {
   return (
@@ -56,9 +58,15 @@ interface GroupViewProps {
 
 export function GroupView({ group, onCreateSubgroup }: GroupViewProps) {
   const store = useStore();
+  const favorites = useFavorites();
   const { pickFiles } = useUploader();
   const confirm = useConfirm();
   const items = store.itemsInGroup(group.id);
+
+  const toggleItemFavorite = (id: string) => {
+    const result = favorites.toggleFavorite('item', id);
+    if (result === 'limit') notifyFavoritesLimit(favorites.max);
+  };
   const activeId = store.activeItemByGroup[group.id] ?? items[items.length - 1]?.id ?? null;
   const active = items.find((i) => i.id === activeId) ?? items[items.length - 1] ?? null;
 
@@ -171,10 +179,12 @@ export function GroupView({ group, onCreateSubgroup }: GroupViewProps) {
                     key={it.id}
                     item={it}
                     isActive={active?.id === it.id}
+                    isFavorite={favorites.isFavorite('item', it.id)}
                     onSelect={() => {
                       store.setActiveItem(group.id, it.id);
                       setDropdown(false);
                     }}
+                    onToggleFavorite={() => toggleItemFavorite(it.id)}
                     onDelete={async () => {
                       const ok = await confirm({
                         title: `Remove “${it.name}”?`,
@@ -268,6 +278,30 @@ export function GroupView({ group, onCreateSubgroup }: GroupViewProps) {
               </div>
             )}
           </div>
+          {active &&
+            (() => {
+              const isFav = favorites.isFavorite('item', active.id);
+              return (
+                <button
+                  className={`flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs transition ${
+                    isFav
+                      ? 'border-amber-300/40 bg-amber-300/10 text-amber-200 hover:bg-amber-300/15'
+                      : 'border-white/10 bg-white/[0.03] text-ink-200 hover:bg-white/[0.07] hover:text-amber-300'
+                  }`}
+                  onClick={() => toggleItemFavorite(active.id)}
+                  title={isFav ? 'Remove from favorites' : 'Add to favorites'}
+                >
+                  <Icon
+                    name={isFav ? 'star-filled' : 'star'}
+                    width={13}
+                    height={13}
+                  />
+                  <span className="hidden md:inline">
+                    {isFav ? 'Favorited' : 'Favorite'}
+                  </span>
+                </button>
+              );
+            })()}
           {active && isFileItem(active) && (
             <button
               className="flex items-center gap-1.5 rounded-md border border-white/10 bg-white/[0.03] px-2 py-1 text-xs text-ink-200 transition hover:bg-white/[0.07]"
@@ -371,12 +405,16 @@ function GroupHeader({
 function ItemRow({
   item,
   isActive,
+  isFavorite,
   onSelect,
+  onToggleFavorite,
   onDelete,
 }: {
   item: Item;
   isActive: boolean;
+  isFavorite: boolean;
   onSelect: () => void;
+  onToggleFavorite: () => void;
   onDelete: () => void;
 }) {
   return (
@@ -390,6 +428,27 @@ function ItemRow({
           <Icon name={ICON_FOR_KIND[item.kind]} width={13} height={13} />
         </span>
         <span className="flex-1 truncate">{item.name}</span>
+      </button>
+      <button
+        className={`rounded-md p-1 transition hover:bg-white/10 ${
+          isFavorite
+            ? 'text-amber-300 opacity-100'
+            : 'text-ink-400 opacity-0 hover:text-amber-300 group-hover:opacity-100'
+        }`}
+        onClick={(e) => {
+          e.stopPropagation();
+          onToggleFavorite();
+        }}
+        title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+        aria-label={
+          isFavorite ? `Unfavorite ${item.name}` : `Favorite ${item.name}`
+        }
+      >
+        <Icon
+          name={isFavorite ? 'star-filled' : 'star'}
+          width={13}
+          height={13}
+        />
       </button>
       <button
         className="rounded-md p-1 text-ink-400 opacity-0 hover:bg-red-500/15 hover:text-red-300 group-hover:opacity-100"

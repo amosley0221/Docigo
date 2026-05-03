@@ -32,7 +32,9 @@ export type IconName =
   | 'chart-line'
   | 'chart-pie'
   | 'eye'
-  | 'eye-off';
+  | 'eye-off'
+  | 'star'
+  | 'star-filled';
 
 export function Icon({ name, ...props }: IconProps) {
   const common = {
@@ -226,6 +228,18 @@ export function Icon({ name, ...props }: IconProps) {
           <path d="M3 3l18 18" />
           <path d="M10.6 6.1A10 10 0 0 1 12 6c6.5 0 10 6 10 6a17.3 17.3 0 0 1-3.3 4.1M6.6 6.6A17.5 17.5 0 0 0 2 12s3.5 6 10 6a10 10 0 0 0 4-.8" />
           <path d="M9.9 9.9a3 3 0 0 0 4.2 4.2" />
+        </svg>
+      );
+    case 'star':
+      return (
+        <svg {...common} {...props}>
+          <path d="M12 3.5l2.6 5.27 5.82.85-4.21 4.1.99 5.78L12 16.77l-5.2 2.73.99-5.78-4.21-4.1 5.82-.85L12 3.5z" />
+        </svg>
+      );
+    case 'star-filled':
+      return (
+        <svg {...common} {...props} fill="currentColor">
+          <path d="M12 3.5l2.6 5.27 5.82.85-4.21 4.1.99 5.78L12 16.77l-5.2 2.73.99-5.78-4.21-4.1 5.82-.85L12 3.5z" />
         </svg>
       );
     case 'logo':
