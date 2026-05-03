@@ -1,6 +1,12 @@
 /** @type {import('tailwindcss').Config} */
 export default {
   content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
+  // Wrap every `hover:` utility in `@media (hover: hover)` so iOS doesn't
+  // treat the first tap on a hover-styled element as "activate hover" and
+  // require a second tap to actually fire the click.
+  future: {
+    hoverOnlyWhenSupported: true,
+  },
   theme: {
     extend: {
       fontFamily: {
