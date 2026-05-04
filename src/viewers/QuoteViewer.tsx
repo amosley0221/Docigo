@@ -13,8 +13,8 @@ export function QuoteViewer({ item }: { item: QuoteItem }) {
   }, [highlight, item.id, consume]);
 
   return (
-    <div className="flex h-full justify-center overflow-auto p-4 md:p-8">
-      <article className="glass relative max-w-3xl flex-1 overflow-hidden rounded-2xl px-6 py-7 shadow-soft md:px-10 md:py-10">
+    <div className="h-full overflow-y-auto overflow-x-hidden p-4 md:p-8">
+      <article className="glass relative mx-auto max-w-3xl overflow-hidden rounded-2xl px-5 py-6 shadow-soft md:px-9 md:py-8">
         <span
           aria-hidden
           className="pointer-events-none absolute inset-y-0 left-0 w-1 bg-gradient-to-b from-accent-400/70 via-accent-500/50 to-fuchsia-500/40"
@@ -23,10 +23,10 @@ export function QuoteViewer({ item }: { item: QuoteItem }) {
           <Icon name="quote" width={12} height={12} />
           Text
         </header>
-        <h2 className="mt-2 font-display text-2xl font-bold leading-tight tracking-tight text-white md:text-3xl">
+        <h2 className="mt-2 font-display text-xl font-bold leading-tight tracking-tight text-white md:text-2xl">
           {highlight ? renderHighlighted(item.name, highlight) : item.name}
         </h2>
-        <div className="mt-5 whitespace-pre-wrap break-words font-serif text-[1.05rem] leading-relaxed text-ink-100 md:text-lg">
+        <div className="mt-4 whitespace-pre-wrap break-words font-serif text-base leading-relaxed text-ink-100 md:text-[1.0625rem]">
           {linkify(item.text, highlight)}
         </div>
         {item.source && (
@@ -34,7 +34,7 @@ export function QuoteViewer({ item }: { item: QuoteItem }) {
             — {linkify(item.source, highlight)}
           </div>
         )}
-        <div className="mt-5 text-xs text-ink-500">
+        <div className="mt-4 text-xs text-ink-500">
           Added {new Date(item.createdAt).toLocaleString()}
         </div>
       </article>
