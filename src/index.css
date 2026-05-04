@@ -19,6 +19,16 @@ body,
   text-rendering: optimizeLegibility;
 }
 
+/* The shell owns its own scroll regions (sidebar favorites, the main
+ * workspace pane, viewers, dropdowns). Keep the page itself locked so a
+ * stray scroll inside one of those regions doesn't bubble up and shift the
+ * entire app. */
+html,
+body {
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
 /* Respect iOS safe areas (notch / Dynamic Island at the top, home
  * indicator at the bottom, side insets in landscape). The viewport is
  * already declared with viewport-fit=cover so env(safe-area-inset-*)
