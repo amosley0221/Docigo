@@ -48,6 +48,8 @@ export interface BaseItem {
   updatedAt: number;
   /** Epoch ms when the user starred this item. Undefined = not favorited. */
   favoritedAt?: number;
+  /** Order within the group (smaller = earlier). Falls back to createdAt. */
+  position?: number;
 }
 
 export interface FileItem extends BaseItem {

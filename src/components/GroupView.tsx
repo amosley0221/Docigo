@@ -11,6 +11,7 @@ import type { FileItem } from '../lib/types';
 import { useFavorites } from '../state/favorites';
 import { notifyFavoritesLimit } from './Workspace';
 import { TextFormModal } from './TextFormModal';
+import { useReorderable, type DragOverState } from '../lib/reorder';
 
 function isFileItem(i: Item): i is FileItem {
   return (
@@ -68,6 +69,12 @@ export function GroupView({ group, onCreateSubgroup }: GroupViewProps) {
     const result = favorites.toggleFavorite('item', id);
     if (result === 'limit') notifyFavoritesLimit(favorites.max);
   };
+
+  const itemReorder = useReorderable({
+    items,
+    onReorder: store.reorderItems,
+    mimeType: 'application/x-docigo-item',
+  });
   const activeId = store.activeItemByGroup[group.id] ?? items[items.length - 1]?.id ?? null;
   const active = items.find((i) => i.id === activeId) ?? items[items.length - 1] ?? null;
 
@@ -187,6 +194,15 @@ export function GroupView({ group, onCreateSubgroup }: GroupViewProps) {
                     item={it}
                     isActive={active?.id === it.id}
                     isFavorite={favorites.isFavorite('item', it.id)}
+                    dragBind={itemReorder.bind(it.id)}
+                    dragHandle={itemReorder.handle(it.id)}
+                    showHandle={itemReorder.needsHandle}
+                    isDragging={itemReorder.draggingId === it.id}
+                    dragOver={
+                      itemReorder.overState?.id === it.id
+                        ? itemReorder.overState
+                        : null
+                    }
                     onSelect={() => {
                       store.setActiveItem(group.id, it.id);
                       setDropdown(false);
@@ -474,6 +490,11 @@ function ItemRow({
   item,
   isActive,
   isFavorite,
+  dragBind,
+  dragHandle,
+  showHandle,
+  isDragging,
+  dragOver,
   onSelect,
   onToggleFavorite,
   onDelete,
@@ -481,17 +502,51 @@ function ItemRow({
   item: Item;
   isActive: boolean;
   isFavorite: boolean;
+  dragBind: React.HTMLAttributes<HTMLElement> & { draggable?: boolean };
+  dragHandle: React.HTMLAttributes<HTMLElement> & { hidden?: boolean };
+  showHandle: boolean;
+  isDragging: boolean;
+  dragOver: DragOverState | null;
   onSelect: () => void;
   onToggleFavorite: () => void;
   onDelete: () => void;
 }) {
+  const indicator = dragOver && !isDragging ? dragOver.pos : null;
   return (
     <div
-      className={`group flex items-center gap-2 rounded-lg px-2.5 py-2 text-sm ${
-        isActive ? 'bg-white/10 text-white' : 'text-ink-200 hover:bg-white/5 hover:text-white'
+      {...dragBind}
+      data-reorder-id={item.id}
+      className={`group relative flex items-center gap-1 rounded-lg pr-1 text-sm ${
+        isDragging ? 'opacity-40' : ''
+      } ${
+        isActive
+          ? 'bg-white/10 text-white'
+          : 'text-ink-200 hover:bg-white/5 hover:text-white'
       }`}
     >
-      <button onClick={onSelect} className="flex flex-1 items-center gap-2 text-left">
+      {indicator && (
+        <span
+          className={`pointer-events-none absolute left-0 right-0 h-0.5 rounded bg-accent-400 ${
+            indicator === 'before' ? 'top-0' : 'bottom-0'
+          }`}
+        />
+      )}
+      <span
+        {...dragHandle}
+        className={`flex h-8 shrink-0 cursor-grab items-center justify-center text-ink-500 active:cursor-grabbing ${
+          showHandle
+            ? 'w-5 text-ink-300'
+            : 'w-3 opacity-0 group-hover:opacity-100'
+        }`}
+        title="Drag to reorder"
+        aria-label="Drag to reorder"
+      >
+        ⋮⋮
+      </span>
+      <button
+        onClick={onSelect}
+        className="flex flex-1 items-center gap-2 py-2 pr-1 text-left"
+      >
         <span className="flex h-7 w-7 items-center justify-center rounded-md bg-white/5">
           <Icon name={ICON_FOR_KIND[item.kind]} width={13} height={13} />
         </span>

@@ -96,6 +96,7 @@ interface StoreActions {
   ) => void;
   renameItem: (id: string, name: string) => void;
   deleteItem: (id: string) => Promise<void>;
+  reorderItems: (orderedIds: string[]) => void;
   setActiveItem: (groupId: string, itemId: string) => void;
   setGroupFavorite: (id: string, on: boolean) => void;
   setItemFavorite: (id: string, on: boolean) => void;
@@ -450,6 +451,12 @@ export function StoreProvider({ children, userId }: StoreProviderProps) {
       await api.uploadBlob(storagePath, file, file.type);
 
       const now = Date.now();
+      const existing = options?.replaceItemId
+        ? state.items.find((i) => i.id === options.replaceItemId)
+        : null;
+      const position =
+        existing?.position ??
+        state.items.filter((i) => i.groupId === target.groupId).length;
       const item: FileItem = {
         id,
         name: finalName,
@@ -461,6 +468,7 @@ export function StoreProvider({ children, userId }: StoreProviderProps) {
         groupId: target.groupId,
         createdAt: now,
         updatedAt: now,
+        position,
       };
 
       // Try extracting text for search; non-fatal.
@@ -490,6 +498,7 @@ export function StoreProvider({ children, userId }: StoreProviderProps) {
         size: file.size,
         storagePath,
         searchText,
+        position,
       });
 
       setState((s) => {
@@ -555,6 +564,9 @@ export function StoreProvider({ children, userId }: StoreProviderProps) {
     ) => {
       const id = crypto.randomUUID();
       const now = Date.now();
+      const position = state.items.filter(
+        (i) => i.groupId === target.groupId,
+      ).length;
       const item: QuoteItem = {
         id,
         name: name?.trim() || deriveQuoteName(text),
@@ -565,6 +577,7 @@ export function StoreProvider({ children, userId }: StoreProviderProps) {
         groupId: target.groupId,
         createdAt: now,
         updatedAt: now,
+        position,
       };
       setState((s) => ({
         ...s,
@@ -580,6 +593,7 @@ export function StoreProvider({ children, userId }: StoreProviderProps) {
           name: item.name,
           quoteText: text,
           quoteSource: source,
+          position,
         });
       } catch (err) {
         reportError(err);
@@ -608,6 +622,9 @@ export function StoreProvider({ children, userId }: StoreProviderProps) {
     const addChecklist: StoreActions['addChecklist'] = async (target, name) => {
       const id = crypto.randomUUID();
       const now = Date.now();
+      const position = state.items.filter(
+        (i) => i.groupId === target.groupId,
+      ).length;
       const item: ChecklistItemT = {
         id,
         name: name?.trim() || 'New checklist',
@@ -617,6 +634,7 @@ export function StoreProvider({ children, userId }: StoreProviderProps) {
         groupId: target.groupId,
         createdAt: now,
         updatedAt: now,
+        position,
       };
       setState((s) => ({
         ...s,
@@ -631,6 +649,7 @@ export function StoreProvider({ children, userId }: StoreProviderProps) {
           kind: 'checklist',
           name: item.name,
           checklistEntries: [],
+          position,
         });
       } catch (err) {
         reportError(err);
@@ -658,6 +677,9 @@ export function StoreProvider({ children, userId }: StoreProviderProps) {
     const addChart: StoreActions['addChart'] = async (target, name) => {
       const id = crypto.randomUUID();
       const now = Date.now();
+      const position = state.items.filter(
+        (i) => i.groupId === target.groupId,
+      ).length;
       const item: ChartItemT = {
         id,
         name: name?.trim() || 'New chart',
@@ -668,6 +690,7 @@ export function StoreProvider({ children, userId }: StoreProviderProps) {
         groupId: target.groupId,
         createdAt: now,
         updatedAt: now,
+        position,
       };
       setState((s) => ({
         ...s,
@@ -683,6 +706,7 @@ export function StoreProvider({ children, userId }: StoreProviderProps) {
           name: item.name,
           chartType: 'bar',
           chartData: [],
+          position,
         });
       } catch (err) {
         reportError(err);
@@ -757,6 +781,19 @@ export function StoreProvider({ children, userId }: StoreProviderProps) {
         activeItemByGroup: { ...s.activeItemByGroup, [groupId]: itemId },
       }));
 
+    const reorderItemsAct = (orderedIds: string[]) => {
+      const positionById = new Map(orderedIds.map((id, i) => [id, i]));
+      setState((s) => ({
+        ...s,
+        items: s.items.map((i) =>
+          positionById.has(i.id)
+            ? { ...i, position: positionById.get(i.id) }
+            : i,
+        ),
+      }));
+      api.reorderItems(userId, orderedIds).catch(reportError);
+    };
+
     const setGroupFavoriteAct = (id: string, on: boolean) => {
       const ts = on ? Date.now() : undefined;
       setState((s) => ({
@@ -801,13 +838,19 @@ export function StoreProvider({ children, userId }: StoreProviderProps) {
       updateChart,
       renameItem,
       deleteItem: deleteItemAct,
+      reorderItems: reorderItemsAct,
       setActiveItem,
       setGroupFavorite: setGroupFavoriteAct,
       setItemFavorite: setItemFavoriteAct,
       itemsInGroup: (groupId) =>
         state.items
           .filter((i) => i.groupId === groupId)
-          .sort((a, b) => a.createdAt - b.createdAt),
+          .sort((a, b) => {
+            const pa = a.position ?? 0;
+            const pb = b.position ?? 0;
+            if (pa !== pb) return pa - pb;
+            return a.createdAt - b.createdAt;
+          }),
       groupsInLocation: (locationId) =>
         state.groups.filter(
           (g) => g.locationId === locationId && !g.parentGroupId,

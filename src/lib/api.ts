@@ -92,6 +92,7 @@ function itemFromRow(row: ItemRow): Item {
     createdAt: Date.parse(row.created_at),
     updatedAt: Date.parse(row.updated_at),
     favoritedAt: row.favorited_at ? Date.parse(row.favorited_at) : undefined,
+    position: row.position,
   };
   switch (row.kind as ItemKind) {
     case 'quote':
@@ -291,10 +292,11 @@ interface ItemInsert {
   chartXLabel?: string;
   chartYLabel?: string;
   searchText?: string;
+  position?: number;
 }
 
 export async function upsertItem(userId: string, it: ItemInsert) {
-  const row = {
+  const row: Record<string, unknown> = {
     id: it.id,
     user_id: userId,
     location_id: it.locationId,
@@ -315,10 +317,23 @@ export async function upsertItem(userId: string, it: ItemInsert) {
     search_text: it.searchText ?? null,
     updated_at: new Date().toISOString(),
   };
+  if (it.position !== undefined) row.position = it.position;
   const { error } = await supabase
     .from('items')
     .upsert(row, { onConflict: 'id' });
   if (error) throw error;
+}
+
+export async function reorderItems(userId: string, orderedIds: string[]) {
+  // Per-row updates so RLS scopes each write to the owner.
+  for (let i = 0; i < orderedIds.length; i++) {
+    const { error } = await supabase
+      .from('items')
+      .update({ position: i })
+      .eq('id', orderedIds[i])
+      .eq('user_id', userId);
+    if (error) throw error;
+  }
 }
 
 export async function patchItem(
