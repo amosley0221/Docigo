@@ -2,7 +2,7 @@ import SwiftUI
 
 struct ContentView: View {
     /// Update this to your deployed URL (Render, custom domain, etc).
-    private let url = URL(string: "https://docigo.onrender.com")!
+    private let url = URL(string: "https://docigo.net")!
 
     var body: some View {
         ZStack {

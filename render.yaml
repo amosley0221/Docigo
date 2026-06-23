@@ -43,8 +43,7 @@ services:
         value: sb_publishable_Z7MMwOGGRA1Zncru9ZIy1g_hK1jfMzk
       - key: ALLOWED_ORIGINS
         # Comma-separated list of origins allowed to call /convert.
-        # Add your custom domain too if you wire one up.
-        value: https://docigo.onrender.com,http://localhost:5173
+        value: https://docigo.net,https://www.docigo.net,https://docigo.onrender.com,http://localhost:5173
       - key: MAX_BYTES
         value: "26214400"
       - key: SOFFICE_TIMEOUT_MS

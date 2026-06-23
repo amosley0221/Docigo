@@ -126,6 +126,14 @@ struct WebView: UIViewRepresentable {
             if let appHost = webView.url?.host?.lowercased(), host == appHost {
                 return true
             }
+            // Docigo's own domains (apex + www + convert API). Keep
+            // navigation between them inside the WebView so the app stays
+            // focused.
+            if host == "docigo.net"
+                || host.hasSuffix(".docigo.net")
+                || host == "docigo.onrender.com" {
+                return true
+            }
             // Supabase storage URLs are how the web app opens uploaded files
             // (PDF preview, image, etc) — keep these in-app.
             if host == "supabase.co" || host.hasSuffix(".supabase.co") {
