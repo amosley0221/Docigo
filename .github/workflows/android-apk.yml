@@ -1,0 +1,57 @@
+name: Android APK
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'android/**'
+      - '.github/workflows/android-apk.yml'
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build debug APK
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10'
+
+      - name: Assemble debug APK
+        working-directory: android
+        run: gradle :app:assembleDebug --no-daemon --stacktrace
+
+      - name: Stage APK
+        run: |
+          mkdir -p artifacts
+          cp android/app/build/outputs/apk/debug/app-debug.apk artifacts/docigo.apk
+
+      - name: Upload APK as workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: docigo-apk
+          path: artifacts/docigo.apk
+          if-no-files-found: error
+
+      # When a tag like v1.0 is pushed, publish the APK to a GitHub Release
+      # so it can be linked from anywhere and downloaded without signing in
+      # to the Actions tab.
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/docigo.apk
+          generate_release_notes: true

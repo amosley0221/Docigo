@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Simple "D" glyph sized to sit inside the 66x66 safe zone (dp 21..87). -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M38,32 h22 c14,0 22,10 22,22 s-8,22 -22,22 h-22 z M50,44 v20 h10 c6,0 10,-4 10,-10 s-4,-10 -10,-10 z" />
+</vector>
