@@ -43,12 +43,42 @@ jobs:
           path: artifacts/docigo.apk
           if-no-files-found: error
 
-      # When a tag like v1.0 is pushed, publish the APK to a GitHub Release
-      # so it can be linked from anywhere and downloaded without signing in
-      # to the Actions tab.
-      - name: Publish release
+      # Rolling release — always updated by the latest successful build so
+      # there's a public download link that never goes stale. Consumers grab
+      # docigo.apk from the "android-latest" release on the Releases page.
+      - name: Publish rolling APK release
+        if: "!startsWith(github.ref, 'refs/tags/v')"
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/docigo.apk
+          tag_name: android-latest
+          name: Docigo Android — latest CI build
+          body: |
+            **Latest debug APK, rebuilt automatically on every push.**
+
+            - Source commit: `${{ github.sha }}`
+            - Branch: `${{ github.ref_name }}`
+            - Built: ${{ github.event.head_commit.timestamp }}
+
+            ### Install on Android
+
+            1. Download **docigo.apk** below (from a phone or transfer via
+               email / Google Drive / a QR code pointed at this page).
+            2. Tap the APK. Android will ask permission to install apps from
+               this source — allow it once for the browser or file manager
+               you used.
+            3. Tap Install.
+
+            Requires Android 8.0 (API 26) or newer.
+          prerelease: false
+          make_latest: false
+
+      # Versioned release — cut when a `v*` tag is pushed. Tagged releases
+      # become the "Latest release" marker on GitHub.
+      - name: Publish tagged release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
           files: artifacts/docigo.apk
           generate_release_notes: true
+          make_latest: true
