@@ -30,7 +30,11 @@ import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 class MainActivity : AppCompatActivity() {
 
     companion object {
-        private const val APP_URL = "https://docigo.net"
+        // Live site. Swap to "https://docigo.net" once that domain's DNS
+        // is pointed at Render and the certificate has been issued — both
+        // hosts are already allow-listed in shouldLoadInApp() below, so the
+        // switch is this one line.
+        private const val APP_URL = "https://docigo.onrender.com"
     }
 
     private lateinit var webView: WebView

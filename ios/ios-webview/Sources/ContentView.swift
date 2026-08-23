@@ -1,8 +1,11 @@
 import SwiftUI
 
 struct ContentView: View {
-    /// Update this to your deployed URL (Render, custom domain, etc).
-    private let url = URL(string: "https://docigo.net")!
+    /// Live site. Swap to "https://docigo.net" once that domain's DNS is
+    /// pointed at Render and the certificate has been issued — both hosts
+    /// are already allow-listed in WebView.swift, so this is the only line
+    /// that needs to change.
+    private let url = URL(string: "https://docigo.onrender.com")!
 
     var body: some View {
         ZStack {
